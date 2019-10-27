@@ -1,0 +1,84 @@
+---
+swagger: "2.0"
+info:
+  description: "This is a DNS-over-HTTP (DoH) resolver written in Go."
+  version: "0.1"
+  title: "Swagger DoH"
+  contact:
+    email: "dev@phunsites.net"
+  license:
+    name: "BSD 3-Clause 'New' or 'Revised' License"
+    url: "https://github.com/gpdm/DoH/blob/master/LICENSE"
+host: "doh.swagger.io"
+basePath: "/v1"
+tags:
+- name: "doh"
+  description: "DoH"
+  externalDocs:
+    description: "Find out more"
+    url: "http://swagger.io"
+schemes:
+- "https"
+- "http"
+paths:
+  /dns-query:
+    get:
+      tags:
+      - "doh"
+      summary: "RFC8484-compliant DNS query via GET"
+      description: ""
+      operationId: "dnsQueryGet"
+      produces:
+      - "application/dns-message"
+      parameters:
+      - name: "dns"
+        in: "query"
+        description: "DNS request in RFC1035-style wire format"
+        required: true
+        type: "string"
+        x-exportParamName: "Dns"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/dnsResponse"
+        400:
+          description: "Invalid status value"
+    post:
+      tags:
+      - "doh"
+      summary: "RFC8484-compliant DNS query via POST"
+      description: ""
+      operationId: "dnsQueryPost"
+      consumes:
+      - "application/dns-message"
+      produces:
+      - "application/dns-message"
+      parameters:
+      - in: "body"
+        name: "raw"
+        description: "DNS request in RFC1035-style wire format"
+        required: true
+        schema:
+          $ref: "#/definitions/dnsResponse"
+        x-exportParamName: "Raw"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/dnsResponse"
+        405:
+          description: "Invalid input"
+definitions:
+  dnsResponse:
+    type: "object"
+    properties:
+      dns:
+        type: "string"
+externalDocs:
+  description: "Find out more about Swagger"
+  url: "http://swagger.io"
