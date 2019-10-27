@@ -4,7 +4,7 @@ info:
   version: "0.1"
   title: "Swagger DoH"
   contact:
-    email: "phunsites.net"
+    email: "dev@phunsites.net"
   license:
     name: "BSD 3-Clause 'New' or 'Revised' License"
     url: "https://github.com/gpdm/DoH/blob/master/LICENSE"
@@ -12,126 +12,75 @@ host: "doh.swagger.io"
 basePath: "/v1"
 tags:
 - name: "doh"
-  description: "Everything about your Pets"
+  description: "DoH"
   externalDocs:
     description: "Find out more"
     url: "http://swagger.io"
-- name: "store"
-  description: "Access to Petstore orders"
-- name: "user"
-  description: "Operations about user"
 schemes:
-- "https"
-- "http"
+  - "https"
+  - "http"
+
 paths:
   /dns-query:
     post:
       tags:
       - "doh"
-      summary: "Add a new pet to the store"
+      summary: "RFC8484-compliant DNS query via POST"
       description: ""
-      operationId: "addPet"
+      operationId: "dnsQueryPost"
       consumes:
-      - "application/json"
-      - "application/xml"
+      - "application/dns-message"
       produces:
-      - "application/xml"
-      - "application/json"
+      - "application/dns-message"
       parameters:
       - in: "body"
-        name: "body"
-        description: "Pet object that needs to be added to the store"
+        name: "raw"
+        description: "DNS request in RFC1035-style wire format"
         required: true
         schema:
-          $ref: "#/definitions/Pet"
+          $ref: "#/definitions/dnsResponse"
       responses:
+        200:
+          description: "successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/dnsResponse"
         405:
           description: "Invalid input"
-      security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
+
     get:
       tags:
       - "doh"
-      summary: "Update an existing pet"
+      summary: "RFC8484-compliant DNS query via GET"
       description: ""
-      operationId: "updatePet"
-      consumes:
-      - "application/json"
-      - "application/xml"
+      operationId: "dnsQueryGet"
       produces:
-      - "application/xml"
-      - "application/json"
+      - "application/dns-message"
       parameters:
-      - in: "body"
-        name: "body"
-        description: "Pet object that needs to be added to the store"
+      - name: "dns"
+        in: "query"
+        description: "DNS request in RFC1035-style wire format"
         required: true
-        schema:
-          $ref: "#/definitions/Pet"
+        type: "string"
       responses:
+        200:
+          description: "successful operation"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/dnsResponse"
         400:
-          description: "Invalid ID supplied"
-        404:
-          description: "Pet not found"
-        405:
-          description: "Validation exception"
-      security:
-      - petstore_auth:
-        - "write:pets"
-        - "read:pets"
+          description: "Invalid status value"
 
-securityDefinitions:
-  petstore_auth:
-    type: "oauth2"
-    authorizationUrl: "http://petstore.swagger.io/oauth/dialog"
-    flow: "implicit"
-    scopes:
-      write:pets: "modify pets in your account"
-      read:pets: "read your pets"
-  api_key:
-    type: "apiKey"
-    name: "api_key"
-    in: "header"
+
 definitions:
-  Order:
+  dnsResponse:
     type: "object"
     properties:
-      id:
-        type: "integer"
-        format: "int64"
-      petId:
-        type: "integer"
-        format: "int64"
-      quantity:
-        type: "integer"
-        format: "int32"
-      shipDate:
+      dns:
         type: "string"
-        format: "date-time"
-      status:
-        type: "string"
-        description: "Order Status"
-        enum:
-        - "placed"
-        - "approved"
-        - "delivered"
-      complete:
-        type: "boolean"
-        default: false
-    xml:
-      name: "Order"
-  ApiResponse:
-    type: "object"
-    properties:
-      code:
-        type: "integer"
-        format: "int32"
-      type:
-        type: "string"
-      message:
-        type: "string"
+
 externalDocs:
   description: "Find out more about Swagger"
   url: "http://swagger.io"
