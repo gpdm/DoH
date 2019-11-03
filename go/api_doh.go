@@ -12,9 +12,11 @@ package swagger
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -89,7 +91,7 @@ func ParseDnsHeader(reqData []byte) [6]uint16 {
 /*
  * NOT USED FOR NOW
  */
-func ParseDnsQuestion() {
+func ParseDnsQuestion() bool {
 	return true
 }
 
@@ -224,5 +226,49 @@ func DnsQueryGet(w http.ResponseWriter, r *http.Request) {
  * POST handler for DNS queries
  */
 func DnsQueryPost(w http.ResponseWriter, r *http.Request) {
+	// bail out on wrong content type
+
+	var dnsRequest []byte
+
+	if r.Body != nil {
+		dnsRequest, _ = ioutil.ReadAll(r.Body)
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(dnsRequest))
+	}
+
+	if len(dnsRequest) < 28 {
+		// bail out if 'body' is zero-length
+		// or less than minimum DNS message length of 28 bytes
+		sendError(w, http.StatusBadRequest, "Malformed or missing dns message payload")
+		return
+
+	} else {
+		log.Printf("POST request received, request length %d bytes", len(dnsRequest))
+	}
+
+	// parse the DNS Header
+	dnsHeader := ParseDnsHeader(dnsRequest)
+
+	// validate request flags
+	if !validateReqFlags(dnsHeader[DNS_HDR_RQ_FLAGS]) {
+		sendError(w, http.StatusBadRequest, "Invalid DNS Flags observed in DNS request.")
+		return
+	}
+
+	dnsResponse, dnsResponseErr := sendDnsRequest(dnsRequest)
+	if dnsResponseErr != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", dnsResponseErr))
+		return
+	}
+
+	// return response to client
 	w.Header().Set("Content-Type", "application/dns-message")
+	w.WriteHeader(http.StatusOK)
+	// FIXME a TTL must be included in response
+	// cache-control = max-age=<ACTUAL-TTL>
+	// this could go along with redis. if we use redis, either make it optional, always use it,
+	// or adhere to client-requested Cache-Control mode
+	// would be good to explore this
+	w.Write(dnsResponse)
+
+	return
 }
