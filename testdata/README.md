@@ -4,7 +4,9 @@ This is sample test files used for automatic testing of the DoH implementation.
 
 All files follow the following convention:
 
+```
 <REQUEST-TYPE>_<FQDN>.<PAYLOAD-TYPE>
+```
 
 Whereas:
 

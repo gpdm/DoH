@@ -89,14 +89,14 @@ func ParseDnsHeader(reqData []byte) [6]uint16 {
 }
 
 /*
- * NOT USED FOR NOW
+ * NOT IMPLEMENTED YET
  */
-func ParseDnsQuestion() bool {
-	return true
+func ParseDnsQuestion(reqData []byte) []byte {
+	return nil
 }
 
 /*
- * NOT USED FOR NOW
+ * NOT IMPLEMENTED YET
  */
 func validateReqFlags(reqFlags uint16) bool {
 	return true
@@ -128,7 +128,6 @@ func sendDnsRequest(dnsRequestData []byte) ([]byte, error) {
 	// but meabe read-until-EOF, although single-buffer read is
 	// most likely faster
 	dnsResponseDataRaw := make([]byte, 2048)
-	//var length int
 	dnsResponseLength, dnsResponseErr := bufio.NewReader(udpConn).Read(dnsResponseDataRaw)
 
 	if dnsResponseErr != nil {
@@ -148,40 +147,87 @@ func sendDnsRequest(dnsRequestData []byte) ([]byte, error) {
 }
 
 /*
+ * CommonDnsRequestHandler()
+ *
+ * shared routine for DNS Requests passed in by either GET or POST
+ */
+func CommonDnsRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest []byte) {
+	var ccNoCache bool = false // default for Cache-Control: NoCache is FALSE (means: reply from cache)
+	var ccNoStore bool = false // default for Cache-Control: NoStore is FALSE (means: store to cache)
+	_ = ccNoCache              // FIXME: backend code for ccNoCache not there yet. Silence compiler warning using this directive
+
+	// bail out if DNS request is smaller than 28 bytes
+	if len(dnsRequest) < 28 {
+		sendError(w, http.StatusBadRequest, "Malformed request: DNS payload is below treshold")
+		return
+	}
+
+	// check Cache-Control request headers
+	for _, value := range r.Header["Cache-Control"] {
+		if value == "no-cache" {
+			log.Println("Client requested Cache-Control: no-cache")
+			ccNoCache = true // client instructed to not response from server-side cache
+		}
+		if value == "no-store" {
+			log.Println("Client requested Cache-Control: no-store")
+			ccNoStore = true // client instructed to not store to server-side cache
+		}
+	}
+
+	// parse the DNS Header
+	dnsHeader := ParseDnsHeader(dnsRequest)
+
+	// FIXME
+	// does not work yet (backend code is still missing)
+	// validate request flags
+	if !validateReqFlags(dnsHeader[DNS_HDR_RQ_FLAGS]) {
+		sendError(w, http.StatusBadRequest, "Invalid DNS Flags observed in DNS request.")
+		return
+	}
+
+	// FIXME: implement server-side cache, but honor ccNoCache
+	dnsResponse, dnsResponseErr := sendDnsRequest(dnsRequest)
+	if dnsResponseErr != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", dnsResponseErr))
+		return
+	}
+	// FIXME: implement server-side cache, but honor ccNoStore
+
+	// parse DNS Question
+	/*
+		FIXME: not implemented yet in backend code
+		dnsQuestion := ParseDnsQuestion(dnsResponse)
+	*/
+
+	// return dns-message to client
+	w.Header().Set("Content-Type", "application/dns-message")
+
+	// honor ccNoCache flag: set max-age:0 to indicate we did our best to not cache
+	if ccNoStore == true {
+		w.Header().Set("Cache-Control", "max-age: 0")
+	} else {
+		// FIXME: this should actually be the *lowest* TTL from the DNS response
+		// we need a DNS response parser to handle this
+		w.Header().Set("Cache-Control", "max-age: 15")
+	}
+
+	// conclude with OK status code and return the dns payload
+	w.WriteHeader(http.StatusOK)
+	w.Write(dnsResponse)
+}
+
+/*
  * DnsQueryGet()
  *
  * GET handler for DNS queries
  */
 func DnsQueryGet(w http.ResponseWriter, r *http.Request) {
-	// FIXME
-	// honour cache excempting:
-	// "no-cache" request Cache-Control
-	//
-	// while we cannot influence our backend resolver,
-	// we can could include our own cache (redis or alike) to pre-empt
-	// the backend from excessive queries.
-	// in this case, the client could instruct us to not use our own cache.
-	//
-	// implementation note:
-	// should check state of defined header, and pass argument to sendDnsRequest()
-	// since sendDnsRequest() should actually connect to the redis, not the
-	// front-facing API call
-
-	// FIXME
-	// check request header for content type for content negotiation (this is optional)
-	// and bail out unless application/dns-message is requested
-	// NOTE: could implement an application/json mode for debugging purposes?
-	// as I said: it's really optional as per the RFC
-
 	// validate 'dns' attribute from GET request arguments
 	argDns, queryParseSuccess := r.URL.Query()["dns"]
 	if !queryParseSuccess || len(argDns[0]) < 1 || len(argDns) > 1 {
 		// bail out if 'dns' is zero-length
-		sendError(w, http.StatusBadRequest, "Mandatory 'dns' request parameter is either not set, empty, or defined multple times")
+		sendError(w, http.StatusBadRequest, "Mandatory 'dns' request parameter is either not set, empty, or defined multiple times")
 		return
-
-	} else {
-		log.Printf("GET request received, request length %d bytes", len(argDns[0]))
 	}
 
 	// decode the DNS request
@@ -192,30 +238,8 @@ func DnsQueryGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// parse the DNS Header
-	dnsHeader := ParseDnsHeader(dnsRequest)
-
-	// validate request flags
-	if !validateReqFlags(dnsHeader[DNS_HDR_RQ_FLAGS]) {
-		sendError(w, http.StatusBadRequest, "Invalid DNS Flags observed in DNS request.")
-		return
-	}
-
-	dnsResponse, dnsResponseErr := sendDnsRequest(dnsRequest)
-	if dnsResponseErr != nil {
-		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", dnsResponseErr))
-		return
-	}
-
-	// return response to client
-	w.Header().Set("Content-Type", "application/dns-message")
-	w.WriteHeader(http.StatusOK)
-	// FIXME a TTL must be included in response
-	// cache-control = max-age=<ACTUAL-TTL>
-	// this could go along with redis. if we use redis, either make it optional, always use it,
-	// or adhere to client-requested Cache-Control mode
-	// would be good to explore this
-	w.Write(dnsResponse)
+	// pass DNS request to request handler
+	CommonDnsRequestHandler(w, *r, dnsRequest)
 
 	return
 }
@@ -226,49 +250,31 @@ func DnsQueryGet(w http.ResponseWriter, r *http.Request) {
  * POST handler for DNS queries
  */
 func DnsQueryPost(w http.ResponseWriter, r *http.Request) {
-	// bail out on wrong content type
-
-	var dnsRequest []byte
-
-	if r.Body != nil {
-		dnsRequest, _ = ioutil.ReadAll(r.Body)
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(dnsRequest))
+	// bail out on unsupported content-type
+	if r.Header.Get("Content-Type") != "application/dns-message" {
+		sendError(w, http.StatusUnsupportedMediaType, "unsupported or missing Content-Type")
+		return
 	}
 
-	if len(dnsRequest) < 28 {
+	// some minimal sanity checking on the message body
+	if r.Body == nil {
+		sendError(w, http.StatusBadRequest, "Missing body payload")
+		return
+	}
+
+	// get DNS request from message body
+	dnsRequest, _ := ioutil.ReadAll(r.Body)
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(dnsRequest))
+
+	// bail out if 'body' is zero-length
+	if len(dnsRequest) == 0 {
 		// bail out if 'body' is zero-length
-		// or less than minimum DNS message length of 28 bytes
-		sendError(w, http.StatusBadRequest, "Malformed or missing dns message payload")
-		return
-
-	} else {
-		log.Printf("POST request received, request length %d bytes", len(dnsRequest))
-	}
-
-	// parse the DNS Header
-	dnsHeader := ParseDnsHeader(dnsRequest)
-
-	// validate request flags
-	if !validateReqFlags(dnsHeader[DNS_HDR_RQ_FLAGS]) {
-		sendError(w, http.StatusBadRequest, "Invalid DNS Flags observed in DNS request.")
+		sendError(w, http.StatusBadRequest, "Missing dns message payload")
 		return
 	}
 
-	dnsResponse, dnsResponseErr := sendDnsRequest(dnsRequest)
-	if dnsResponseErr != nil {
-		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", dnsResponseErr))
-		return
-	}
-
-	// return response to client
-	w.Header().Set("Content-Type", "application/dns-message")
-	w.WriteHeader(http.StatusOK)
-	// FIXME a TTL must be included in response
-	// cache-control = max-age=<ACTUAL-TTL>
-	// this could go along with redis. if we use redis, either make it optional, always use it,
-	// or adhere to client-requested Cache-Control mode
-	// would be good to explore this
-	w.Write(dnsResponse)
+	// pass DNS request to request handler
+	CommonDnsRequestHandler(w, *r, dnsRequest)
 
 	return
 }
