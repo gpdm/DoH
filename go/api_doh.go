@@ -11,15 +11,218 @@
 package swagger
 
 import (
+	"bufio"
+	"encoding/base64"
+	"encoding/binary"
+	"fmt"
+	"log"
+	"net"
 	"net/http"
 )
 
-func DnsQueryGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+// indices of DNS request header
+const DNS_HDR_RQ_ID = 0
+const DNS_HDR_RQ_FLAGS = 1
+const DNS_HDR_RQ_QDCOUNT = 2
+const DNS_HDR_RQ_ANCOUNT = 3
+const DNS_HDR_RQ_NSCOUNT = 4
+const DNS_HDR_RQ_ARCOUNT = 5
+
+// indices of DNS request flags
+const DNS_FLAGS_TYPE_QUERY = 0
+const DNS_FLAGS_TYPE_RESPONSE = 1
+
+/*
+ * sendError()
+ *
+ * helper to send error message to the client
+ *
+ */
+func sendError(w http.ResponseWriter, httpStatusCode int, errorMessage string) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(httpStatusCode)
+	fmt.Fprintf(w, errorMessage)
+	log.Printf(errorMessage)
+
+	return
 }
 
-func DnsQueryPost(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+/*
+ * ParseDnsHeader()
+ *
+ * parses and returns the request/response Header from the DNS payload
+ *
+ */
+func ParseDnsHeader(reqData []byte) [6]uint16 {
+	// first word is the request ID
+	var _reqId = []byte{reqData[0], reqData[1]}
+	reqId := binary.BigEndian.Uint16(_reqId)
+
+	// second word is the request flags
+	//
+	var _reqFlags = []byte{reqData[2], reqData[3]}
+	reqFlags := binary.BigEndian.Uint16(_reqFlags)
+
+	// third word is the Question Count
+	//
+	var _reqQdCount = []byte{reqData[4], reqData[5]}
+	reqQdCount := binary.BigEndian.Uint16(_reqQdCount)
+
+	// forth word is the Answer Count
+	//
+	var _reqAnCount = []byte{reqData[6], reqData[7]}
+	reqAnCount := binary.BigEndian.Uint16(_reqAnCount)
+
+	// fifth word is the NS Count
+	//
+	var _reqNsCount = []byte{reqData[8], reqData[9]}
+	reqNsCount := binary.BigEndian.Uint16(_reqNsCount)
+
+	// sixth word is the AR Count
+	//
+	var _reqArCount = []byte{reqData[10], reqData[11]}
+	reqArCount := binary.BigEndian.Uint16(_reqArCount)
+
+	return [6]uint16{reqId, reqFlags, reqQdCount, reqAnCount, reqNsCount, reqArCount}
+}
+
+/*
+ * NOT USED FOR NOW
+ */
+func ParseDnsQuestion() {
+	return true
+}
+
+/*
+ * NOT USED FOR NOW
+ */
+func validateReqFlags(reqFlags uint16) bool {
+	return true
+}
+
+/*
+ * sendDnsRequest()
+ *
+ * send a DNS request to the resolver and return it's response
+ */
+func sendDnsRequest(dnsRequestData []byte) ([]byte, error) {
+
+	// open UDP connection to DNS resolver
+	// FIXME IP should come from ENV
+	udpConn, udpConnErr := net.Dial("udp", "192.168.100.201:53")
+	defer udpConn.Close()
+
+	if udpConnErr != nil {
+		return nil, udpConnErr
+	}
+
+	// send DNS request to resolver
+	udpConn.Write(dnsRequestData)
+
+	// traditional DNS is limited to 512 bytes,
+	// while EDNS supports up to 2K. We'll go with a 2K buffer
+	//
+	// this may need fixing. we should not read a fixed buffer,
+	// but meabe read-until-EOF, although single-buffer read is
+	// most likely faster
+	dnsResponseDataRaw := make([]byte, 2048)
+	//var length int
+	dnsResponseLength, dnsResponseErr := bufio.NewReader(udpConn).Read(dnsResponseDataRaw)
+
+	if dnsResponseErr != nil {
+		return nil, dnsResponseErr
+	}
+
+	// !!! NOTE !!!
+	// this needs fixing:
+	//
+	// because of our fixed-size buffer allocation, response is a zero-padded slice.
+	// the code below initializes a new slice with the real payload length received,
+	// and copies the RAW slice over. All excess bytes will overflow and be truncated.
+	dnsResponseData := make([]byte, dnsResponseLength)
+	copy(dnsResponseData, dnsResponseDataRaw)
+
+	return dnsResponseData, nil
+}
+
+/*
+ * DnsQueryGet()
+ *
+ * GET handler for DNS queries
+ */
+func DnsQueryGet(w http.ResponseWriter, r *http.Request) {
+	// FIXME
+	// honour cache excempting:
+	// "no-cache" request Cache-Control
+	//
+	// while we cannot influence our backend resolver,
+	// we can could include our own cache (redis or alike) to pre-empt
+	// the backend from excessive queries.
+	// in this case, the client could instruct us to not use our own cache.
+	//
+	// implementation note:
+	// should check state of defined header, and pass argument to sendDnsRequest()
+	// since sendDnsRequest() should actually connect to the redis, not the
+	// front-facing API call
+
+	// FIXME
+	// check request header for content type for content negotiation (this is optional)
+	// and bail out unless application/dns-message is requested
+	// NOTE: could implement an application/json mode for debugging purposes?
+	// as I said: it's really optional as per the RFC
+
+	// validate 'dns' attribute from GET request arguments
+	argDns, queryParseSuccess := r.URL.Query()["dns"]
+	if !queryParseSuccess || len(argDns[0]) < 1 || len(argDns) > 1 {
+		// bail out if 'dns' is zero-length
+		sendError(w, http.StatusBadRequest, "Mandatory 'dns' request parameter is either not set, empty, or defined multple times")
+		return
+
+	} else {
+		log.Printf("GET request received, request length %d bytes", len(argDns[0]))
+	}
+
+	// decode the DNS request
+	// NOTE: this uses RFC4648 URL encoding *without* padding
+	dnsRequest, base64DecodeErr := base64.RawURLEncoding.DecodeString(argDns[0])
+	if base64DecodeErr != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error decoding DNS request data from Base64: %s", base64DecodeErr))
+		return
+	}
+
+	// parse the DNS Header
+	dnsHeader := ParseDnsHeader(dnsRequest)
+
+	// validate request flags
+	if !validateReqFlags(dnsHeader[DNS_HDR_RQ_FLAGS]) {
+		sendError(w, http.StatusBadRequest, "Invalid DNS Flags observed in DNS request.")
+		return
+	}
+
+	dnsResponse, dnsResponseErr := sendDnsRequest(dnsRequest)
+	if dnsResponseErr != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", dnsResponseErr))
+		return
+	}
+
+	// return response to client
+	w.Header().Set("Content-Type", "application/dns-message")
 	w.WriteHeader(http.StatusOK)
+	// FIXME a TTL must be included in response
+	// cache-control = max-age=<ACTUAL-TTL>
+	// this could go along with redis. if we use redis, either make it optional, always use it,
+	// or adhere to client-requested Cache-Control mode
+	// would be good to explore this
+	w.Write(dnsResponse)
+
+	return
+}
+
+/*
+ * DnsQueryGet()
+ *
+ * POST handler for DNS queries
+ */
+func DnsQueryPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/dns-message")
 }

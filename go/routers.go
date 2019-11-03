@@ -59,14 +59,14 @@ var routes = Routes{
 	Route{
 		"DnsQueryGet",
 		strings.ToUpper("Get"),
-		"/v1/dns-query",
+		"/dns-query",
 		DnsQueryGet,
 	},
 
 	Route{
 		"DnsQueryPost",
 		strings.ToUpper("Post"),
-		"/v1/dns-query",
+		"/dns-query",
 		DnsQueryPost,
 	},
 }

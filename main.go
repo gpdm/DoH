@@ -28,5 +28,6 @@ func main() {
 
 	router := sw.NewRouter()
 
-	log.Fatal(http.ListenAndServe(":8080", router))
+	//log.Fatal(http.ListenAndServe(":8081", router))
+	log.Fatal(http.ListenAndServeTLS(":8080", "/Users/gianpaolo/Dropbox/Devel/lab.cer", "/Users/gianpaolo/Dropbox/Devel/lab.key", router))
 }
