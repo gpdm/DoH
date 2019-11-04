@@ -45,14 +45,16 @@ func NewRouter() *mux.Router {
 }
 
 func Index(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello World!")
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "DoH Server")
 }
 
 var routes = Routes{
 	Route{
 		"Index",
 		"GET",
-		"/v1/",
+		"/",
 		Index,
 	},
 

@@ -18,8 +18,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
+	"time"
+
+	"github.com/spf13/viper"
 )
 
 // indices of DNS request header
@@ -108,10 +112,12 @@ func validateReqFlags(reqFlags uint16) bool {
  * send a DNS request to the resolver and return it's response
  */
 func sendDnsRequest(dnsRequestData []byte) ([]byte, error) {
+	// select a random DNS resolver
+	rand.Seed(time.Now().Unix())
+	dnsResolver := viper.GetStringSlice("dns.resolvers")[rand.Intn(len(viper.GetStringSlice("dns.resolvers")))]
 
 	// open UDP connection to DNS resolver
-	// FIXME IP should come from ENV
-	udpConn, udpConnErr := net.Dial("udp", "192.168.100.201:53")
+	udpConn, udpConnErr := net.Dial("udp", fmt.Sprintf("%s:53", dnsResolver))
 	defer udpConn.Close()
 
 	if udpConnErr != nil {
@@ -202,7 +208,10 @@ func CommonDnsRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest [
 	// return dns-message to client
 	w.Header().Set("Content-Type", "application/dns-message")
 
-	// honor ccNoCache flag: set max-age:0 to indicate we did our best to not cache
+	// FIXME this is actually wrong
+	// should implement DNS payload parser, and extract the proper TTL
+	// for any RR type available. In case of SOA records, the MIN-TTL must be used instead.
+	// honor ccNoStore flag: set max-age:0 to indicate we did our best to not cache
 	if ccNoStore == true {
 		w.Header().Set("Cache-Control", "max-age: 0")
 	} else {

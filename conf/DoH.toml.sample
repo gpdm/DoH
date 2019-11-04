@@ -1,0 +1,36 @@
+# default listen address.
+# set to "" to list to all addresses
+listen.address = ""
+
+# http-only server
+# according to RFC8484, DoH must only be supported via TLS on HTTP/2
+# However, for development purposes, the http-plain mode can serve some purpose.
+# this should stay disabled on production systems
+http.enable = false 
+http.port = 80
+
+# settings for TLS HTTP/2 service (mandatory)
+tls.port = 443
+tls.pkey = "./conf/private.key"
+tls.cert = "./conf/public.crt"
+
+# DNS resolver
+#
+# at least one host must be specified.
+# host must be reachable via UDP on port 53.
+# It's not currently possible to chain to other DoH servers.
+# 
+# multiple can be specified as shown below:
+#
+#   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13 ] 
+#
+# both fully qualified hostnames and/or IP addresses are permitted.
+#
+dns.resolvers = [ "localhost" ]
+
+# optional redis cache 
+redis.enable = false 
+redis.addr = "localhost"
+redis.port = "6379"
+redis.username = ""
+redis.password = ""
