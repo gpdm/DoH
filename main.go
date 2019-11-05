@@ -10,6 +10,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -47,11 +48,14 @@ func main() {
 	viper.SetConfigName("DoH")
 	viper.AddConfigPath("/etc/DoH/")
 	viper.AddConfigPath("./conf")
+	// enable config handling for env vars
+	viper.AutomaticEnv()
 	// wait group for go routines
 	var wg sync.WaitGroup
 
 	// accept optional override for config file from CLI
 	cfConfigFile := flag.String("configfile", "", "config file (optional)")
+	rtVerbose := flag.Bool("verbose", false, "verbose mode")
 	flag.Parse()
 
 	// perform config file/path location override magic, if given from CLI
@@ -84,6 +88,12 @@ func main() {
 	if _, err := os.Stat(viper.GetString("tls.cert")); err != nil {
 		log.Printf("Error accessing TLS certificate: %s", err)
 		os.Exit(1)
+	}
+
+	// print runtime configuration in verbose mode
+	if *rtVerbose {
+		b, _ := json.MarshalIndent(viper.AllSettings(), "", "  ")
+		log.Printf("Runtime Configuration dump:\n%s\n", string(b))
 	}
 
 	// initialize service router
