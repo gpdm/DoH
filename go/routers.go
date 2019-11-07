@@ -7,7 +7,7 @@
  * Contact: dev@phunsites.net
  */
 
-package api_doh
+package dohservice
 
 import (
 	"fmt"

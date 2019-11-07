@@ -7,8 +7,8 @@
  * Contact: dev@phunsites.net
  */
 
-package api_doh
+package dohservice
 
-type DnsResponse struct {
-	Dns string `json:"dns,omitempty"`
+type DNSResponse struct {
+	DNS string `json:"dns,omitempty"`
 }

@@ -7,7 +7,7 @@
  * Contact: dev@phunsites.net
  */
 
-package api_doh
+package dohservice
 
 import (
 	"bufio"
@@ -100,7 +100,6 @@ func sendDNSRequest(dnsRequestData []byte) ([]byte, error) {
 	// most likely faster
 	dnsResponseDataRaw := make([]byte, 2048)
 	dnsResponseLength, dnsResponseErr := bufio.NewReader(udpConn).Read(dnsResponseDataRaw)
-
 	if dnsResponseErr != nil {
 		return nil, dnsResponseErr
 	}
@@ -195,7 +194,7 @@ func DNSQueryGet(w http.ResponseWriter, r *http.Request) {
 	// validate 'dns' attribute from GET request arguments
 	argDNS, queryParseSuccess := r.URL.Query()["dns"]
 	if !queryParseSuccess || len(argDNS[0]) < 1 || len(argDNS) > 1 {
-		// bail out if 'dns' is zero-length
+		// bail out if 'dns' is omitted, zero-length or occurs multiple times
 		sendError(w, http.StatusBadRequest, "Mandatory 'dns' request parameter is either not set, empty, or defined multiple times")
 		return
 	}
