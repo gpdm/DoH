@@ -15,7 +15,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -25,28 +24,20 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
-/*
- * sendError()
- *
- * helper to send error message to the client
- *
- */
+// sendError is a helper to construct meaningful error messages
+// returned to the client
 func sendError(w http.ResponseWriter, httpStatusCode int, errorMessage string) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(httpStatusCode)
 	fmt.Fprintf(w, errorMessage)
-	log.Printf(errorMessage)
+	ConsoleLogger(LogDebug, errorMessage, false)
 
 	return
 }
 
-/*
- * ParseDNSQuestion()
- *
- * parses the DNS Question
- *
- */
-func ParseDNSQuestion(reqData []byte) error {
+// parseDNSQuestion inspects the DNS question from the payload packet,
+// and implements some minimum logging output.
+func parseDNSQuestion(reqData []byte) error {
 	// initialize the message parser
 	var dnsParser dnsmessage.Parser
 
@@ -65,7 +56,7 @@ func ParseDNSQuestion(reqData []byte) error {
 			return err
 		}
 
-		log.Printf("Lookup: %s, %s, %s\n", q.Name, q.Class, q.Type)
+		ConsoleLogger(LogDebug, fmt.Sprintf("Lookup: %s, %s, %s\n", q.Name, q.Class, q.Type), false)
 	}
 
 	return nil
@@ -116,12 +107,13 @@ func sendDNSRequest(dnsRequestData []byte) ([]byte, error) {
 	return dnsResponseData, nil
 }
 
-/*
- * CommonDNSRequestHandler()
- *
- * shared routine for DNS Requests passed in by either GET or POST
- */
-func CommonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest []byte) {
+// commonDNSRequestHandler is the shared backend routine, invoked from either
+// the POST or GET frontend handlers.
+// The routine consumes the http.ResponseWrite, http.Request and dnsRequest,
+// and passes the request to the question validator.
+// If the DNS question is deemed valid, the query is passed over to the
+// DNS server.
+func commonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest []byte) {
 	var ccNoCache bool = false // default for Cache-Control: NoCache is FALSE (means: reply from cache)
 	var ccNoStore bool = false // default for Cache-Control: NoStore is FALSE (means: store to cache)
 	_ = ccNoCache              // FIXME: backend code for ccNoCache not there yet. Silence compiler warning using this directive
@@ -135,17 +127,17 @@ func CommonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest [
 	// check Cache-Control request headers
 	for _, value := range r.Header["Cache-Control"] {
 		if value == "no-cache" {
-			log.Println("Client requested Cache-Control: no-cache")
+			ConsoleLogger(LogDebug, "Client requested Cache-Control: no-cache", false)
 			ccNoCache = true // client instructed to not response from server-side cache
 		}
 		if value == "no-store" {
-			log.Println("Client requested Cache-Control: no-store")
+			ConsoleLogger(LogDebug, "Client requested Cache-Control: no-store", false)
 			ccNoStore = true // client instructed to not store to server-side cache
 		}
 	}
 
 	// parse the DNS question
-	dnsQuestionErr := ParseDNSQuestion(dnsRequest)
+	dnsQuestionErr := parseDNSQuestion(dnsRequest)
 	if dnsQuestionErr != nil {
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error in DNS question: %s", dnsQuestionErr))
 		return
@@ -159,11 +151,11 @@ func CommonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest [
 	}
 	// FIXME: implement server-side cache, but honor ccNoStore
 
-	// parse DNS Question
+	// parse DNS Response
 	/*
 		FIXME: not implemented yet in backend code
-		dnsQuestion := ParseDnsQuestion(dnsResponse)
 	*/
+	//parseDNSResponse(dnsResponse)
 
 	// return dns-message to client
 	w.Header().Set("Content-Type", "application/dns-message")
@@ -185,12 +177,11 @@ func CommonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest [
 	w.Write(dnsResponse)
 }
 
-/*
- * DNSQueryGet() does ...
- *
- * GET handler for DNS queries
- */
+// DNSQueryGet is the HTTP GET request handler, which performs
+// minimum upfront validation, before passing the request over
+// to the shared backend routine
 func DNSQueryGet(w http.ResponseWriter, r *http.Request) {
+
 	// validate 'dns' attribute from GET request arguments
 	argDNS, queryParseSuccess := r.URL.Query()["dns"]
 	if !queryParseSuccess || len(argDNS[0]) < 1 || len(argDNS) > 1 {
@@ -208,17 +199,16 @@ func DNSQueryGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// pass DNS request to request handler
-	CommonDNSRequestHandler(w, *r, dnsRequest)
+	commonDNSRequestHandler(w, *r, dnsRequest)
 
 	return
 }
 
-/*
- * DNSQueryPost()
- *
- * POST handler for DNS queries
- */
+// DNSQueryPost is the HTTP POST request handler, which performs
+// minimum upfront validation, before passing the request over
+// to the shared backend routine
 func DNSQueryPost(w http.ResponseWriter, r *http.Request) {
+
 	// bail out on unsupported content-type
 	if r.Header.Get("Content-Type") != "application/dns-message" {
 		sendError(w, http.StatusUnsupportedMediaType, "unsupported or missing Content-Type")
@@ -243,7 +233,16 @@ func DNSQueryPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// pass DNS request to request handler
-	CommonDNSRequestHandler(w, *r, dnsRequest)
+	commonDNSRequestHandler(w, *r, dnsRequest)
 
 	return
+}
+
+// rootIndex is the HTTP request handler, which is called
+// upon accessing the web service index / document root.
+// This function returns a generic message to the client.
+func rootIndex(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "DoH Server")
 }

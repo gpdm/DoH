@@ -34,3 +34,10 @@ redis.addr = "localhost"
 redis.port = "6379"
 redis.username = ""
 redis.password = ""
+
+# optional influxDB
+influx.enable = false
+influx.url = ""
+influx.database = ""
+influx.username = ""
+influx.password = ""

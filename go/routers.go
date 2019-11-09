@@ -1,9 +1,8 @@
 /*
- * API DoH
+ * DoH Service - HTTP Router
  *
- * This is a DNS-over-HTTP (DoH) resolver written in Go.
+ * This is the collection for the HTTP request router
  *
- * API version: 0.1
  * Contact: dev@phunsites.net
  */
 
@@ -13,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -26,27 +26,51 @@ type Route struct {
 
 type Routes []Route
 
-func NewRouter() *mux.Router {
+// NewRouter initializes an HTTP multiplexer for the webservice
+func NewRouter(chanTelemetry chan uint) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	for _, route := range routes {
 		var handler http.Handler
 		handler = route.HandlerFunc
-		handler = Logger(handler, route.Name)
+		handler = httpHandler(handler, route.Name, chanTelemetry)
 
 		router.
 			Methods(route.Method).
 			Path(route.Pattern).
 			Name(route.Name).
 			Handler(handler)
+
+		ConsoleLogger(LogInform, fmt.Sprintf("Registered HTTP handler: method=%s, path=%s", route.Method, route.Pattern), false)
 	}
 
 	return router
 }
 
-func Index(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "DoH Server")
+// httpHandler wraps the http request handler and logging routine.
+func httpHandler(inner http.Handler, name string, chanTelemetry chan uint) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// add some extra verbosity before we handle the request
+		ConsoleLogger(LogDebug, fmt.Sprintf("Client Requested URL: %s", r.URL), false)
+		ConsoleLogger(LogDebug, fmt.Sprintf("Client Request Headers: %s", r.Header), false)
+
+		// serve the HTTP request
+		inner.ServeHTTP(w, r)
+
+		// Telemetry: Logging HTTP request type
+		chanTelemetry <- TelemetryValues[r.Method]
+		ConsoleLogger(LogDebug, fmt.Sprintf("Logging HTTP Telemetry for %s request.", r.Method), false)
+
+		// Logging HTTP request in verbose mode
+		ConsoleLogger(LogInform, fmt.Sprintf(
+			"%s %s %s %s",
+			r.Method,
+			r.RequestURI,
+			name,
+			time.Since(start),
+		), false)
+	})
 }
 
 var routes = Routes{
@@ -54,7 +78,7 @@ var routes = Routes{
 		"Index",
 		"GET",
 		"/",
-		Index,
+		rootIndex,
 	},
 
 	Route{

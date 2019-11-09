@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -44,6 +43,12 @@ func main() {
 	viper.SetDefault("redis.port", "6379")
 	viper.SetDefault("redis.username", nil)
 	viper.SetDefault("redis.password", nil)
+	viper.SetDefault("influx.enable", false)
+	viper.SetDefault("influx.url", nil)
+	viper.SetDefault("influx.database", nil)
+	viper.SetDefault("influx.username", nil)
+	viper.SetDefault("influx.password", nil)
+	viper.SetDefault("log.level", sw.LogNotice)
 	// set default config file locations
 	viper.SetConfigName("DoH")
 	viper.AddConfigPath("/etc/DoH/")
@@ -56,70 +61,88 @@ func main() {
 	// accept optional override for config file from CLI
 	cfConfigFile := flag.String("configfile", "", "config file (optional)")
 	rtVerbose := flag.Bool("verbose", false, "verbose mode")
+	rtDebug := flag.Bool("debug", false, "debug mode")
 	flag.Parse()
+
+	// reflect CLI args to viper
+	if *rtVerbose {
+		viper.Set("log.level", sw.LogInform)
+	}
+	if *rtDebug {
+		viper.Set("log.level", sw.LogDebug)
+	}
 
 	// perform config file/path location override magic, if given from CLI
 	if *cfConfigFile != "" {
 		_, err := os.Stat(*cfConfigFile)
 
 		if !os.IsNotExist(err) {
-			log.Printf("using config file from: %s", *cfConfigFile)
+			sw.ConsoleLogger(sw.LogNotice, fmt.Sprintf("using config file from: %s", *cfConfigFile), false)
 			viper.SetConfigFile(*cfConfigFile)
 
 		} else if os.IsNotExist(err) {
-			log.Printf("error accessing '%s': %s", *cfConfigFile, err)
-			os.Exit(1)
+			sw.ConsoleLogger(sw.LogEmerg, fmt.Sprintf("error accessing '%s': %s", *cfConfigFile, err), true) // fatal=true, will cause immediate exit
 		}
 	}
 
 	// read configuration, and bail out on parser error
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			log.Printf("%s", err)
-			os.Exit(1)
+			sw.ConsoleLogger(sw.LogEmerg, err, true) // fatal=true, will cause immediate exit
 		}
 	}
 
 	// bail out on missing cert/key files
 	if _, err := os.Stat(viper.GetString("tls.pkey")); err != nil {
-		log.Printf("Error accessing TLS private key: %s", err)
-		os.Exit(1)
+		sw.ConsoleLogger(sw.LogEmerg, fmt.Sprintf("Error accessing TLS private key: %s", err), true) // fatal=true, will cause immediate exit
 	}
 	if _, err := os.Stat(viper.GetString("tls.cert")); err != nil {
-		log.Printf("Error accessing TLS certificate: %s", err)
-		os.Exit(1)
+		sw.ConsoleLogger(sw.LogEmerg, fmt.Sprintf("Error accessing TLS certificate: %s", err), true) // fatal=true, will cause immediate exit
 	}
+
+	// FIXME
+	// validate influxDB config
+	// --missing-stuff-goes-here--
+
+	// FIXME
+	// validate redis config
+	// --missing-stuff-goes-here--
 
 	// print runtime configuration in verbose mode
-	if *rtVerbose {
-		b, _ := json.MarshalIndent(viper.AllSettings(), "", "  ")
-		log.Printf("Runtime Configuration dump:\n%s\n", string(b))
-	}
+	b, _ := json.MarshalIndent(viper.AllSettings(), "", "  ")
+	sw.ConsoleLogger(sw.LogInform, fmt.Sprintf("Runtime Configuration dump:\n%s\n", string(b)), false)
 
-	// initialize service router
-	router := sw.NewRouter()
+	// initialize influxDB telemetry collector
+	TelemetryChannel := make(chan uint, 4096)
+	go sw.TelemetryCollector(TelemetryChannel)
 
-	// fire up optional http-only server
+	// initialize HTTP service router
+	router := sw.NewRouter(TelemetryChannel)
+
+	// fire up optional HTTP-only server
 	if viper.GetBool("http.enable") {
 		wg.Add(1)
 		go func() {
-			log.Fatal(http.ListenAndServe(
-				fmt.Sprintf("%s:%s", viper.GetString("listen.address"), viper.GetString("http.port")), router))
+			sw.ConsoleLogger(sw.LogEmerg,
+				http.ListenAndServe(fmt.Sprintf("%s:%s", viper.GetString("listen.address"), viper.GetString("http.port")), router),
+				true)
 		}()
-		log.Printf("HTTP Server started")
+		sw.ConsoleLogger(sw.LogNotice, "HTTP Server started", false)
 	}
 
-	// fire up TLS http/2 server
+	// fire up TLS HTTP/2 server
 	wg.Add(1)
 	go func() {
-		log.Fatal(http.ListenAndServeTLS(
-			fmt.Sprintf("%s:%s", viper.GetString("listen.address"), viper.GetString("tls.port")),
-			viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router))
+		sw.ConsoleLogger(sw.LogEmerg,
+			http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("listen.address"), viper.GetString("tls.port")),
+				viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router),
+			true)
 	}()
-	log.Printf("TLS Server started")
+	sw.ConsoleLogger(sw.LogNotice, "TLS HTTP Server started", false)
 
 	// wait for all routines to complete
 	wg.Wait()
 
 	os.Exit(0)
+
 }
