@@ -1,0 +1,4 @@
+conf/*.key
+conf/*.crt
+conf/*.toml
+DoH
