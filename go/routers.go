@@ -17,22 +17,46 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type Route struct {
+type route struct {
 	Name        string
 	Method      string
 	Pattern     string
 	HandlerFunc http.HandlerFunc
 }
 
-type Routes []Route
+type routes []route
+
+// routers defines set of HTTP handler routes
+var routers = routes{
+	route{
+		"Index",
+		"GET",
+		"/",
+		rootIndex,
+	},
+
+	route{
+		"DNSQueryGet",
+		strings.ToUpper("Get"),
+		"/dns-query",
+		DNSQueryGet,
+	},
+
+	route{
+		"DNSQueryPost",
+		strings.ToUpper("Post"),
+		"/dns-query",
+		DNSQueryPost,
+	},
+}
 
 // NewRouter initializes an HTTP multiplexer for the webservice
 func NewRouter(chanTelemetry chan uint) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
-	for _, route := range routes {
+	for _, route := range routers {
 		var handler http.Handler
-		handler = route.HandlerFunc
-		handler = httpHandler(handler, route.Name, chanTelemetry)
+		//handler = route.HandlerFunc
+		handler = httpHandler(route.HandlerFunc, route.Name, chanTelemetry)
 
 		router.
 			Methods(route.Method).
@@ -55,12 +79,12 @@ func httpHandler(inner http.Handler, name string, chanTelemetry chan uint) http.
 		ConsoleLogger(LogDebug, fmt.Sprintf("Client Requested URL: %s", r.URL), false)
 		ConsoleLogger(LogDebug, fmt.Sprintf("Client Request Headers: %s", r.Header), false)
 
-		// serve the HTTP request
-		inner.ServeHTTP(w, r)
-
 		// Telemetry: Logging HTTP request type
 		chanTelemetry <- TelemetryValues[r.Method]
 		ConsoleLogger(LogDebug, fmt.Sprintf("Logging HTTP Telemetry for %s request.", r.Method), false)
+
+		// serve the HTTP request
+		inner.ServeHTTP(w, r)
 
 		// Logging HTTP request in verbose mode
 		ConsoleLogger(LogInform, fmt.Sprintf(
@@ -71,27 +95,4 @@ func httpHandler(inner http.Handler, name string, chanTelemetry chan uint) http.
 			time.Since(start),
 		), false)
 	})
-}
-
-var routes = Routes{
-	Route{
-		"Index",
-		"GET",
-		"/",
-		rootIndex,
-	},
-
-	Route{
-		"DNSQueryGet",
-		strings.ToUpper("Get"),
-		"/dns-query",
-		DNSQueryGet,
-	},
-
-	Route{
-		"DNSQueryPost",
-		strings.ToUpper("Post"),
-		"/dns-query",
-		DNSQueryPost,
-	},
 }

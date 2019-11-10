@@ -57,6 +57,10 @@ func parseDNSQuestion(reqData []byte) error {
 		}
 
 		ConsoleLogger(LogDebug, fmt.Sprintf("Lookup: %s, %s, %s\n", q.Name, q.Class, q.Type), false)
+
+		// Telemetry: Logging DNS request type
+		telemetryChannel <- TelemetryValues[q.Type.String()]
+		ConsoleLogger(LogDebug, fmt.Sprintf("Logging DNS Telemetry for %s request.", q.Type), false)
 	}
 
 	return nil

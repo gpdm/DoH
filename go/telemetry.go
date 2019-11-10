@@ -16,11 +16,53 @@ import (
 	"github.com/spf13/viper"
 )
 
-const TelemetryHttpRequestTypeGet uint = 0b00000001
-const TelemetryHttpRequestTypePost uint = 0b00000010
-const TelemetryDnsRequestTypeAny uint = 0b00000000
-const TelemetryDnsRequestTypeA uint = 0b00000011
-const TelemetryDnsRequestTypeAAAA uint = 0b00000100
+// telemetryChannel
+var telemetryChannel chan uint = nil
+
+// TelemetryDNSRequestTypeALL is an arbitary type to track DNS ALL requests
+const TelemetryDNSRequestTypeALL uint = 0b11111111
+
+// TelemetryDNSRequestTypeA is an arbitary type to track DNS A requests
+const TelemetryDNSRequestTypeA uint = 0b00000001
+
+// TelemetryDNSRequestTypeAAAA is an arbitary type to track DNS AAAA requests
+const TelemetryDNSRequestTypeAAAA uint = 0b00011100
+
+// TelemetryDNSRequestTypeCNAME is an arbitary type to track DNS CNAME requests
+const TelemetryDNSRequestTypeCNAME uint = 0b00000101
+
+// TelemetryDNSRequestTypeHINFO is an arbitary type to track DNS HINFO requests
+const TelemetryDNSRequestTypeHINFO uint = 0b00001101
+
+// TelemetryDNSRequestTypeMINFO is an arbitary type to track DNS MINFO requests
+const TelemetryDNSRequestTypeMINFO uint = 0b00001110
+
+// TelemetryDNSRequestTypeMX is an arbitary type to track DNS MX requests
+const TelemetryDNSRequestTypeMX uint = 0b00001111
+
+// TelemetryDNSRequestTypeNS is an arbitary type to track DNS NS requests
+const TelemetryDNSRequestTypeNS uint = 0b00000010
+
+// TelemetryDNSRequestTypePTR is an arbitary type to track DNS PTR requests
+const TelemetryDNSRequestTypePTR uint = 0b00001100
+
+// TelemetryDNSRequestTypeSOA is an arbitary type to track DNS SOA requests
+const TelemetryDNSRequestTypeSOA uint = 0b00000110
+
+// TelemetryDNSRequestTypeSRV is an arbitary type to track DNS SRV requests
+const TelemetryDNSRequestTypeSRV uint = 0b00100001
+
+// TelemetryDNSRequestTypeTXT is an arbitary type to track DNS TXT requests
+const TelemetryDNSRequestTypeTXT uint = 0b00010000
+
+// TelemetryDNSRequestTypeWKS is an arbitary type to track DNS WKS requests
+const TelemetryDNSRequestTypeWKS uint = 0b00001011
+
+// TelemetryHTTPRequestTypeGet is an arbitary type to track HTTP GET requests
+const TelemetryHTTPRequestTypeGet uint = 0b0000001000000000
+
+// TelemetryHTTPRequestTypePost is an arbitary type to track HTTP POST requests
+const TelemetryHTTPRequestTypePost uint = 0b0000001000000001
 
 // TelemetryValues serves as a lookup table to map given keywords to a binary type.
 // The binary type will be reflected over the IPC channel,
@@ -28,11 +70,20 @@ const TelemetryDnsRequestTypeAAAA uint = 0b00000100
 //
 // TelemetryValues is a public map, so external functions can make use of this.
 var TelemetryValues = map[string]uint{
-	"POST":     TelemetryHttpRequestTypePost,
-	"GET":      TelemetryHttpRequestTypeGet,
-	"TypeANY":  TelemetryDnsRequestTypeAny,
-	"TypeA":    TelemetryDnsRequestTypeA,
-	"TypeAAAA": TelemetryDnsRequestTypeAAAA,
+	"POST":      TelemetryHTTPRequestTypePost,
+	"GET":       TelemetryHTTPRequestTypeGet,
+	"TypeANY":   TelemetryDNSRequestTypeALL,
+	"TypeA":     TelemetryDNSRequestTypeA,
+	"TypeAAAA":  TelemetryDNSRequestTypeAAAA,
+	"TypeHINFO": TelemetryDNSRequestTypeHINFO,
+	"TypeMINFO": TelemetryDNSRequestTypeMINFO,
+	"TypeMX":    TelemetryDNSRequestTypeMX,
+	"TypeNS":    TelemetryDNSRequestTypeNS,
+	"TypePTR":   TelemetryDNSRequestTypePTR,
+	"TypeSOA":   TelemetryDNSRequestTypeSOA,
+	"TypeSRV":   TelemetryDNSRequestTypeSRV,
+	"TypeTXT":   TelemetryDNSRequestTypeTXT,
+	"TypeWKS":   TelemetryDNSRequestTypeWKS,
 }
 
 // telemetryData maps the binary values back onto a more useful map,
@@ -40,29 +91,74 @@ var TelemetryValues = map[string]uint{
 //
 // telemetryData is a private map.
 var telemetryData = map[uint]map[string]interface{}{
-	TelemetryHttpRequestTypePost: {
+	TelemetryHTTPRequestTypePost: {
 		"RequestCategory": "HTTP",
 		"RequestType":     "POST",
 		"RequestCounter":  0,
 	},
-	TelemetryHttpRequestTypeGet: {
+	TelemetryHTTPRequestTypeGet: {
 		"RequestCategory": "HTTP",
 		"RequestType":     "GET",
 		"RequestCounter":  0,
 	},
-	TelemetryDnsRequestTypeAny: {
+	TelemetryDNSRequestTypeALL: {
 		"RequestCategory": "DNS",
-		"RequestType":     "TypeANY",
+		"RequestType":     "TypeALL",
 		"RequestCounter":  0,
 	},
-	TelemetryDnsRequestTypeA: {
+	TelemetryDNSRequestTypeA: {
 		"RequestCategory": "DNS",
 		"RequestType":     "TypeA",
 		"RequestCounter":  0,
 	},
-	TelemetryDnsRequestTypeAAAA: {
+	TelemetryDNSRequestTypeAAAA: {
 		"RequestCategory": "DNS",
 		"RequestType":     "TypeAAAA",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeHINFO: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeHINFO",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeMINFO: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeMINFO",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeMX: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeMX",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeNS: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeNS",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypePTR: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypePTR",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeSOA: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeSOA",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeSRV: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeSRV",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeTXT: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeTXT",
+		"RequestCounter":  0,
+	},
+	TelemetryDNSRequestTypeWKS: {
+		"RequestCategory": "DNS",
+		"RequestType":     "TypeWKS",
 		"RequestCounter":  0,
 	},
 }
@@ -108,7 +204,7 @@ func getCounters(neededRequestCategory string) map[string]interface{} {
 // and resets all current counts to zero
 func resetCounters() {
 	// loop our statistics map
-	for _requestType, _ := range telemetryData {
+	for _requestType := range telemetryData {
 		// reset counter
 		telemetryData[_requestType]["RequestCounter"] = 0
 	}
@@ -165,6 +261,8 @@ func sendMetrics(c client.Client) {
 func TelemetryCollector(chanTelemetry chan uint) {
 	// track when Telemetry was last comitted to InfluxDB
 	var telemetryLastUpdate = time.Now().Unix()
+	// register global telemetry channel
+	telemetryChannel = chanTelemetry
 
 	// Check if InfluxDB is disabled.
 	//
