@@ -78,7 +78,7 @@ To use from environment, specify like so:
 
 `docker run [..] -e GLOBAL.LISTEN="" [..]`
 
-#### log.level
+#### global.loglevel
 
 ```toml
 # default log level

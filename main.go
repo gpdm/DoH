@@ -50,13 +50,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	// WARNING!
-	// Change this to a fully-qualified import path
-	// once you place this file into your project.
-	// For example,
-	//
-	//    sw "github.com/myname/myrepo/go"
-	//
+	// DoH lib
 	goDoh "github.com/gpdm/DoH/go"
 )
 
