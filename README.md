@@ -207,6 +207,15 @@ Search for any `trr` related config properties. The ones to change are these:
 * mandatory: `network.trr.bootstrapAddress` must be IP address of your DoH resolver, if you set `network.trr.mode=3`.
 
 
+### curl
+
+Using DoH with curl, starting from v7.62, as simple as this:
+
+```
+curl --doh-url https://<fully-qualified-domain-name>/dns-query [any-url-you-want-to-access]
+```
+
+
 ## A Personal Opinion on DoH
 
 To make it absolutely clear: I endorse the argument of added privacy enforced by using DoH over traditional, unencrypted DNS transport.
@@ -287,6 +296,12 @@ DoH is simply not the way to go.
 ## License
 
 This implementation is licensed under the terms of the BSD 3-Clause License.
+
+
+## More Documentation
+
+* [CURL Wiki](https://github.com/curl/curl/wiki/DNS-over-HTTPS)
+* [RFC8484](https://tools.ietf.org/html/rfc8484)
 
 
 ## TO DO
