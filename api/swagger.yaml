@@ -1,84 +1,110 @@
----
-swagger: "2.0"
+openapi: 3.0.1
 info:
-  description: "This is a DNS-over-HTTP (DoH) resolver written in Go."
-  version: "0.1"
-  title: "Swagger DoH"
+  title: Swagger for DoH Daemon
+  description: This is a "DNS over HTTP" (DoH) implementation written in Go.
   contact:
-    email: "dev@phunsites.net"
+    email: dev@phunsites.net
   license:
-    name: "BSD 3-Clause 'New' or 'Revised' License"
-    url: "https://github.com/gpdm/DoH/blob/master/LICENSE"
-host: "doh.swagger.io"
-basePath: "/v1"
+    name: BSD 3-Clause 'New' or 'Revised' License
+    url: https://github.com/gpdm/DoH/blob/master/LICENSE
+  version: "0.5"
+externalDocs:
+  description: Source Code on Github
+  url: https://github.com/gpdm/DoH
+servers:
+- url: https://localhost:443/
+- url: http://localhost:80/
 tags:
-- name: "doh"
-  description: "DoH"
-  externalDocs:
-    description: "Find out more"
-    url: "http://swagger.io"
-schemes:
-- "https"
-- "http"
+- name: doh
+  description: '"DNS over HTTP" requests'
+- name: status
+  description: 'status interface'
 paths:
   /dns-query:
     get:
       tags:
-      - "doh"
-      summary: "RFC8484-compliant DNS query via GET"
-      description: ""
-      operationId: "dnsQueryGet"
-      produces:
-      - "application/dns-message"
+      - doh
+      summary: RFC8484-compliant DNS query via GET
+      externalDocs:
+        description: Read more on the HTTP GET request in RFC8484.
+        url: https://tools.ietf.org/html/rfc8484#section-4.1
+      operationId: dnsQueryGet
       parameters:
-      - name: "dns"
-        in: "query"
-        description: "DNS request in RFC1035-style wire format"
-        required: true
-        type: "string"
-        x-exportParamName: "Dns"
-      responses:
-        200:
-          description: "successful operation"
-          schema:
-            type: "array"
-            items:
-              $ref: "#/definitions/dnsResponse"
-        400:
-          description: "Invalid status value"
-    post:
-      tags:
-      - "doh"
-      summary: "RFC8484-compliant DNS query via POST"
-      description: ""
-      operationId: "dnsQueryPost"
-      consumes:
-      - "application/dns-message"
-      produces:
-      - "application/dns-message"
-      parameters:
-      - in: "body"
-        name: "raw"
-        description: "DNS request in RFC1035-style wire format"
+      - name: dns
+        in: query
+        description: DNS request in RFC1035-style wire format, payload is URL-encoded without
+          padding as per RFC4648
         required: true
         schema:
-          $ref: "#/definitions/dnsResponse"
-        x-exportParamName: "Raw"
+          type: string
+        examples:
+          www.example.com:
+            value: AAABAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB
+            summary: A sample request to resolve www.example.com
       responses:
         200:
-          description: "successful operation"
-          schema:
-            type: "array"
-            items:
-              $ref: "#/definitions/dnsResponse"
-        405:
-          description: "Invalid input"
-definitions:
-  dnsResponse:
-    type: "object"
-    properties:
-      dns:
-        type: "string"
-externalDocs:
-  description: "Find out more about Swagger"
-  url: "http://swagger.io"
+          description: successful operation
+          content:
+            application/dns-message:
+              schema:
+                type: string
+                format: binary
+                items:
+                  $ref: '#/components/schemas/dnsResponse'
+        400:
+          description: 'Bad Request: Request Payload or Request Parameters are invalid'
+          content: {}
+    post:
+      tags:
+      - doh
+      summary: RFC8484-compliant DNS query via POST
+      externalDocs:
+        description: Read more on the HTTP POST request in RFC8484.
+        url: https://tools.ietf.org/html/rfc8484#section-4.1
+      operationId: dnsQueryPost
+      requestBody:
+        content:
+          application/dns-message:
+            schema:
+              type: string
+              format: binary
+            examples:
+              www.example.com:
+               externalValue: 'https://github.com/gpdm/DoH/raw/master/testdata/A_www.example.com.bin'
+               summary: A sample request to resolve www.example.com
+        required: true
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/dns-message:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/dnsResponse'
+        400:
+          description: 'Bad Request: Request Payload or Request Parameters are invalid'
+          content: {}
+        415:
+          description: 'Unsupported Media Type: client must support "application/dns-message" media type'
+          content: {}
+      x-codegen-request-body-name: raw
+  /status:
+    get:
+      tags:
+      - status
+      summary: Returns Service Health Status
+      operationId: status
+      responses:
+        200:
+          description: successful operation
+          content:
+            text/plain:
+              schema:
+                type: string
+                format: text
+components:
+  schemas:
+    dnsResponse:
+      type: string
+      format: binary

@@ -250,3 +250,12 @@ func rootIndex(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "DoH Server")
 }
+
+// status is the Status Handler, which indicates if the service is healthly
+// This is only meant as a public "ping" method, nothing more, nothing less.
+func status(w http.ResponseWriter, r *http.Request) {
+	// this section needs improving
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Server is running")
+}

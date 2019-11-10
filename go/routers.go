@@ -36,6 +36,13 @@ var routers = routes{
 	},
 
 	route{
+		"Status",
+		"GET",
+		"/status",
+		status,
+	},
+
+	route{
 		"DNSQueryGet",
 		strings.ToUpper("Get"),
 		"/dns-query",

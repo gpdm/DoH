@@ -2,7 +2,7 @@
 
 This is a "DNS over HTTP" (DoH) server implementation written in Go.
 
-The implementation follows RFC8484[https://tools.ietf.org/html/rfc8484], and provides several key features:
+The implementation follows [RFC8484](https://tools.ietf.org/html/rfc8484), and provides several key features:
 
 * support for both POST and GET queries over HTTP/2 and TLS
 * supports one or more backend DNS servers
@@ -21,6 +21,7 @@ Known Limitations:
 
 * Only traditional DNS servers responding on UDP:53 are supported for now
 * Incoming request packets are not validated, thus relayed 1:1 to the DNS backend server(s)
+
 
 
 ## Motivation
@@ -62,7 +63,7 @@ Usage of ./DoH:
         verbose mode
 ```
 
-As you see, there's not too many options. A sample config file is provided beneath `./conf/DoH.toml.sample`, I'll cover that further below.
+As you see, there's not too many options. A sample config file is provided beneath [./conf/DoH.toml.sample](https://github.com/gpdm/DoH/blob/master/conf/DoH.toml.sample), I'll cover that further below.
 
 
 ### Configuration Directives
@@ -83,7 +84,7 @@ However, I also do have my strongs concerns about certain things.
 If you don't care, simply skip this section on my personal opinion ;-)
 
 
-### Browsers support DoH using Centralized Providers
+#### Browsers support DoH using Centralized Providers
 
 Both Firefox and Chrome gained DoH support and are ready to send DNS queries over to either CloudFlare or Google.
 Throwing the queries over to centralized facilities goes against the principles and building foundations of the Internet,
@@ -100,7 +101,7 @@ which could be abused for doing such nasty things.
 The point is: DoH should run locally, and be connected to your own local DNS *recursive resolver* (not to mistake this with a *forwarding-only resolver*).
 
 
-### DoH in Browsers bypass the local DNS resolver
+#### DoH in Browsers bypass the local DNS resolver
 
 DoH in the current form is an overlay transport mechanism, which is implemented in the Browsers, and bypasses your locally
 configured DNS resolvers of the Operating System.
@@ -116,7 +117,7 @@ At the same time, this is bad, because it bypasses any locally enforced DNS Poli
 I consider this sort of a double-edged sword.
 
 
-### Freedom of Information Availability vs. the Law
+#### Freedom of Information Availability vs. the Law
 
 In some countries, any institution may be obliged by law to enforce certain access and content to be blocked.
 Sometimes, an institution (let's say, a school) may even willingly decide to enforce certain blocking policies, say for ethical reasons.
@@ -131,7 +132,7 @@ In addition: As long as the gorvernors of any organization can be potentially he
 DoH is simply not the way to go.
 
 
-### Compatibility and Other Issues
+#### Compatibility and Other Issues
 
 * DoH may cause problems with DNS views on certain setup.
 * DoH may and propably will break geo-based DNS load balancing (i.e. Akamai uses such mechanisms)
@@ -143,13 +144,18 @@ DoH is simply not the way to go.
 * Did I mention, it takes away the authority from the local network admin?
 
 
-### What I Like about DoH
+#### What I Like about DoH
 
 * The overlay protocol is very lightweight. It was a good choice to not go for JSON-based encoding, but use the DNS wire format.
 * It was good to go for HTTP/2 right away, which implies TLS as well
 * Clients implementations are enforced to only support TLS
 * Given the fact that no OS native implementation yet exists, pushing it to the browsers is understandable in order to give the protocol a push towards getting widely deployed. I do hope however that OS implementers will eventually add support for both DoH and/or DoT.
 
+
+
+## License
+
+This implementation is licensed under the terms of the BSD 3-Clause License.
 
 
 ## TO DO
