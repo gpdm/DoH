@@ -35,6 +35,7 @@ loglevel = 5
 # settings for TLS HTTP/2 service (mandatory)
 #
 [tls]
+    enable = true
     port = 8443
     pkey = "./conf/private.key"
     cert = "./conf/public.crt"
@@ -52,7 +53,7 @@ loglevel = 5
 #   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ]
 #
 [dns]
-    resolvers = [ "1.1.1.1", "1.0.0.1" ]
+    resolvers = [ "192.0.2.1", "localhost" ]
 
 
 # Optional influxDB to report telemetry information
