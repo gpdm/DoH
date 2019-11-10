@@ -16,7 +16,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// telemetryChannel
+// telemetryChannel is globally registered into the package,
+// so other functions can make use of it as well.
 var telemetryChannel chan uint = nil
 
 // TelemetryDNSRequestTypeALL is an arbitary type to track DNS ALL requests
@@ -210,6 +211,8 @@ func resetCounters() {
 	}
 }
 
+// sendMetrics parses the telemetry information out into
+// datastructures suitable to for InfluxDB, to which it is sent.
 func sendMetrics(c client.Client) {
 	bp, bpError := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  viper.GetString("influx.database"),
@@ -219,15 +222,12 @@ func sendMetrics(c client.Client) {
 		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %s", bpError), true)
 	}
 
-	//eventTime := time.Now().Add(time.Second * -20)
-
 	httpPoint, httpPointError := client.NewPoint(
 		"dohStatistics",
 		map[string]string{ // tags
 			"ServiceStats": "HTTP",
 		},
 		getCounters("HTTP"), // fields
-		//eventTime.Add(time.Second*10),
 		time.Now(),
 	)
 	if httpPointError != nil {
@@ -240,7 +240,6 @@ func sendMetrics(c client.Client) {
 			"ServiceStats": "DNS",
 		},
 		getCounters("DNS"), // fields
-		//eventTime.Add(time.Second*10),
 		time.Now(),
 	)
 	if dnsPointError != nil {
@@ -274,13 +273,13 @@ func TelemetryCollector(chanTelemetry chan uint) {
 	// collector, and simply throw away the data.
 	//
 	if !viper.GetBool("influx.enable") {
-		ConsoleLogger(LogInform, "InfluxDB Telemetry Forwarding is disabled", false)
+		ConsoleLogger(LogInform, "InfluxDB Telemetry Forwarding is disabled.", false)
 
 		// stay in loop forever
 		for {
 			// discard telemetry data
 			_ = <-chanTelemetry
-			ConsoleLogger(LogDebug, "Received Telemetry was internally discarded", false)
+			ConsoleLogger(LogDebug, "Received Telemetry was internally discarded.", false)
 		}
 		// we never end up here since the loop has no break condition
 	}
