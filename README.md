@@ -22,15 +22,11 @@ Known Limitations:
 * Only traditional DNS servers responding on UDP:53 are supported for now
 * Incoming request packets are not validated, thus relayed 1:1 to the DNS backend server(s)
 
-
-
-## Motivation
+## Motivation
 
 First, I wanted to understand, how exactly DoH works, and what pitfalls it brings.
 From this, the idea spawned to actually polish this daemon, so it could be easily "plugged" into any existing network infrastructure
 to run a local DoH service yourself.
-
-
 
 ## Running the server
 
@@ -38,22 +34,21 @@ to run a local DoH service yourself.
 
 it's the primarily intended mode of operations to run the DoH daemon from Docker.
 
-```
+```bash
 docker run .....
 ```
 
-### CRIY (Compile and Run It Yourself)
+### CRIY (Compile and Run It Yourself)
 
 To compile your self, do this in the source directory:
 
-```
+```bash
 go build
 ```
 
-
 To run it, here's a short excerpt on the CLI args:
 
-```
+```bash
 Usage of ./DoH:
   -configfile string
         config file (optional)
@@ -65,7 +60,6 @@ Usage of ./DoH:
 
 As you see, there's not too many options. A sample config file is provided beneath [./conf/DoH.toml.sample](https://github.com/gpdm/DoH/blob/master/conf/DoH.toml.sample), I'll cover that further below.
 
-
 ### Configuration Directives
 
 This section covers available configuration directives.
@@ -73,7 +67,7 @@ They can either be set from environment variables (useful for Docker), or from t
 
 #### listen.address
 
-```
+```toml
 # default listen address.
 # set to "" to list to all addresses (default)
 #
@@ -84,10 +78,9 @@ To use from environment, specify like so:
 
 `docker run [..] -e GLOBAL.LISTEN="" [..]`
 
+#### log.level
 
-#### global.loglevel
-
-```
+```toml
 # default log level
 #
 # these are Syslog-compatible log levels
@@ -109,20 +102,19 @@ To use from environment, specify like so:
 
 NOTE: log level is also controlled from CLI, by providing `-verbose` (level=6) or `-debug` (level=7).
 
-
 #### dns.resolvers
 
-```
+```conf
 # DNS resolver
 #
 # at least one host must be specified.
 # host must be reachable via UDP on port 53.
 # It's not currently possible to chain to other DoH or DoT servers.
-# 
+#
 # multiple hosts can be specified as shown below,
 # both in FQDN format or using IP(v4|6) addresses.
 #
-#   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ] 
+#   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ]
 #
 dns.resolvers = [ "localhost" ]
 ```
@@ -131,10 +123,9 @@ To use from environment, specify like so:
 
 `docker run [..] -e DNS.RESOLVERS=$(192.0.2.1,192.0.2.2) [..]`
 
-
 #### tls.*
 
-```
+```toml
 # settings for TLS HTTP/2 service (mandatory)
 #
 tls.port = 443
@@ -146,10 +137,9 @@ To use from environment, specify like so:
 
 `docker run [..] -e TLS.PORT=443 -e TLS.PKEY=./conf/private.key -e TLS.CERT=./conf/public.crt [..]`
 
-
 #### http.*
 
-```
+```toml
 # http-only server
 # according to RFC8484, DoH must only be supported via TLS on HTTP/2
 # However, for development purposes, the http-plain mode can be helpful,
@@ -157,7 +147,7 @@ To use from environment, specify like so:
 # This is clearly not intended for production systems, DoH clients don't
 # support it anyway, and thus should be always turned off.
 #
-http.enable = false 
+http.enable = false
 http.port = 80
 ```
 
@@ -165,11 +155,9 @@ To use from environment, specify like so:
 
 `docker run [..] -e HTTP.ENABLE=true -e HTTP.PORT=80 [..]`
 
-
-
 #### influx.*
 
-```
+```ini
 # Optional influxDB to report telemetry information
 #
 # Telemetry logging only includes counters for HTTP GET / POST requests,
@@ -188,8 +176,6 @@ To use from environment, specify like so:
 
 `docker run [..] -e INFLUX.ENABLE=true -e INFLUX.URL=... -e INFLUX.USERNAME=... INFLUX.PASSWORD=... [..]`
 
-
-
 ## Client Configuration
 
 To use your own DoH instance, the client must be configured accordingly.
@@ -206,15 +192,13 @@ Search for any `trr` related config properties. The ones to change are these:
 * optional: `network.trr.mode`: `2` to enable DoH, and use it first, then fallback. Otherwise `3` to use DoH only. `0` to disable DoH
 * mandatory: `network.trr.bootstrapAddress` must be IP address of your DoH resolver, if you set `network.trr.mode=3`.
 
-
 ### curl
 
 Using DoH with curl, starting from v7.62, as simple as this:
 
-```
+```bash
 curl --doh-url https://<fully-qualified-domain-name>/dns-query [any-url-you-want-to-access]
 ```
-
 
 ## A Personal Opinion on DoH
 
@@ -223,8 +207,7 @@ However, I also do have my strongs concerns about certain things.
 
 If you don't care, simply skip this section on my personal opinion ;-)
 
-
-#### Browsers support DoH using Centralized Providers
+### Browsers support DoH using Centralized Providers
 
 Both Firefox and Chrome gained DoH support and are ready to send DNS queries over to either CloudFlare or Google.
 Throwing the queries over to centralized facilities goes against the principles and building foundations of the Internet,
@@ -239,7 +222,6 @@ Yes, practically everybody running a DNS server can do this. And yes, even my im
 which could be abused for doing such nasty things.
 
 The point is: DoH should run locally, and be connected to your own local DNS *recursive resolver* (not to mistake this with a *forwarding-only resolver*).
-
 
 #### DoH in Browsers bypass the local DNS resolver
 
@@ -256,7 +238,6 @@ At the same time, this is bad, because it bypasses any locally enforced DNS Poli
 
 I consider this sort of a double-edged sword.
 
-
 #### Freedom of Information Availability vs. the Law
 
 In some countries, any institution may be obliged by law to enforce certain access and content to be blocked.
@@ -271,7 +252,6 @@ So a school IMO must have the authority to enforce certain blocking rules, DoH t
 In addition: As long as the gorvernors of any organization can be potentially held liable for not blocking certain content,
 DoH is simply not the way to go.
 
-
 #### Compatibility and Other Issues
 
 * DoH may cause problems with DNS views on certain setup.
@@ -283,7 +263,6 @@ DoH is simply not the way to go.
 * I'm still looking into it, but the HTTP Caching Topic may cause headaches as well
 * Did I mention, it takes away the authority from the local network admin?
 
-
 #### What I Like about DoH
 
 * The overlay protocol is very lightweight. It was a good choice to not go for JSON-based encoding, but use the DNS wire format.
@@ -291,18 +270,14 @@ DoH is simply not the way to go.
 * Clients implementations are enforced to only support TLS
 * Given the fact that no OS native implementation yet exists, pushing it to the browsers is understandable in order to give the protocol a push towards getting widely deployed. I do hope however that OS implementers will eventually add support for both DoH and/or DoT.
 
-
-
 ## License
 
 This implementation is licensed under the terms of the BSD 3-Clause License.
-
 
 ## More Documentation
 
 * [CURL Wiki](https://github.com/curl/curl/wiki/DNS-over-HTTPS)
 * [RFC8484](https://tools.ietf.org/html/rfc8484)
-
 
 ## TO DO
 
