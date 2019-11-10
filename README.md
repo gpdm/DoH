@@ -71,8 +71,122 @@ As you see, there's not too many options. A sample config file is provided benea
 This section covers available configuration directives.
 They can either be set from environment variables (useful for Docker), or from the configuration file.
 
+##### listen.address
+
+```
+# default listen address.
+# set to "" to list to all addresses (default)
+#
+listen.address = ""
+```
+
+To use from environment, specify like so:
+
+`docker run [..] -e LISTEN.ADDRESS="" [..]`
 
 
+##### log.level
+
+```
+# default log level
+#
+# these are Syslog-compatible log levels
+# Emergency = 0
+# Alert = 1
+# Crit = 2
+# Error = 3
+# Warn = 4
+# Notice = 5        # default for DoH daemon -- not chatty at all
+# Information = 6   # also controlled from cli using -verbose switch: add's some diagnostics information
+# Debug = 7         # also controlled from cli using -debug switch: very chatty and fully verbose
+#
+log.level = 5
+```
+
+To use from environment, specify like so:
+
+`docker run [..] -e LOG.LEVEL=7 [..]`
+
+NOTE: log level is also controlled from CLI, by providing `-verbose` (level=6) or `-debug` (level=7).
+
+
+##### dns.resolvers
+
+```
+# DNS resolver
+#
+# at least one host must be specified.
+# host must be reachable via UDP on port 53.
+# It's not currently possible to chain to other DoH or DoT servers.
+# 
+# multiple hosts can be specified as shown below,
+# both in FQDN format or using IP(v4|6) addresses.
+#
+#   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ] 
+#
+dns.resolvers = [ "localhost" ]
+```
+
+To use from environment, specify like so:
+
+`docker run [..] -e DNS.RESOLVERS=$(192.0.2.1,192.0.2.2) [..]`
+
+
+##### tls.*
+
+```
+# settings for TLS HTTP/2 service (mandatory)
+#
+tls.port = 443
+tls.pkey = "./conf/private.key"
+tls.cert = "./conf/public.crt"
+```
+
+To use from environment, specify like so:
+
+`docker run [..] -e TLS.PORT=443 -e TLS.PKEY=./conf/private.key -e TLS.CERT=./conf/public.crt [..]`
+
+
+##### http.*
+
+```
+# http-only server
+# according to RFC8484, DoH must only be supported via TLS on HTTP/2
+# However, for development purposes, the http-plain mode can be helpful,
+# i.e. to capture wire format traffic.
+# This is clearly not intended for production systems, DoH clients don't
+# support it anyway, and thus should be always turned off.
+#
+http.enable = false 
+http.port = 80
+```
+
+To use from environment, specify like so:
+
+`docker run [..] -e HTTP.ENABLE=true -e HTTP.PORT=80 [..]`
+
+
+
+##### influx.*
+
+```
+# Optional influxDB to report telemetry information
+#
+# Telemetry logging only includes counters for HTTP GET / POST requests,
+# and the number of DNS RR Type requests (e.g. TYPE A, TYPE NS) processed.
+# No additional information, e.g. queried hostnames, returned IP addresses,
+# source IPs, etc, is included in the telemetry.
+#
+influx.enable = false
+influx.url = ""
+influx.database = ""
+influx.username = ""
+influx.password = ""
+````
+
+To use from environment, specify like so:
+
+`docker run [..] -e INFLUX.ENABLE=true -e INFLUX.URL=... -e INFLUX.USERNAME=... INFLUX.PASSWORD=... [..]`
 
 
 

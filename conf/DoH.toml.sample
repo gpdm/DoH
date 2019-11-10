@@ -1,7 +1,22 @@
 # default listen address.
-# set to "" to list to all addresses
+# set to "" to list to all addresses (default)
 #
 listen.address = ""
+
+
+# default log level
+#
+# these are Syslog-compatible log levels
+# Emergency = 0
+# Alert = 1
+# Crit = 2
+# Error = 3
+# Warn = 4
+# Notice = 5        # default for DoH daemon -- not chatty at all
+# Information = 6   # also controlled from cli using -verbose switch: add's some diagnostics information
+# Debug = 7         # also controlled from cli using -debug switch: very chatty and fully verbose
+#
+log.level = 5
 
 
 # http-only server
