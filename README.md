@@ -65,22 +65,16 @@ As you see, there's not too many options. A sample config file is provided benea
 This section covers available configuration directives.
 They can either be set from environment variables (useful for Docker), or from the configuration file.
 
-#### global.listen
+#### global
 
 ```toml
+[global]
+
 # default listen address.
 # set to "" to list to all addresses (default)
 #
 listen = ""
-```
 
-To use from environment, specify like so:
-
-`docker run [..] -e GLOBAL.LISTEN="" [..]`
-
-#### global.loglevel
-
-```toml
 # default log level
 #
 # these are Syslog-compatible log levels
@@ -98,11 +92,9 @@ loglevel = 5
 
 To use from environment, specify like so:
 
-`docker run [..] -e GLOBAL.LOGLEVEL=7 [..]`
+`docker run [..] -e GLOBAL.LISTEN="" GLOBAL.LOGLEVEL=7 [..]`
 
-NOTE: log level is also controlled from CLI, by providing `-verbose` (level=6) or `-debug` (level=7).
-
-#### dns.resolvers
+#### dns
 
 ```conf
 # DNS resolver
@@ -116,28 +108,30 @@ NOTE: log level is also controlled from CLI, by providing `-verbose` (level=6) o
 #
 #   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ]
 #
-dns.resolvers = [ "localhost" ]
+[dns]
+resolvers = [ "localhost" ]
 ```
 
 To use from environment, specify like so:
 
 `docker run [..] -e DNS.RESOLVERS=$(192.0.2.1,192.0.2.2) [..]`
 
-#### tls.*
+#### tls
 
 ```toml
 # settings for TLS HTTP/2 service (mandatory)
 #
-tls.port = 443
-tls.pkey = "./conf/private.key"
-tls.cert = "./conf/public.crt"
+[tls]
+  port = 443
+  pkey = "./conf/private.key"
+  cert = "./conf/public.crt"
 ```
 
 To use from environment, specify like so:
 
 `docker run [..] -e TLS.PORT=443 -e TLS.PKEY=./conf/private.key -e TLS.CERT=./conf/public.crt [..]`
 
-#### http.*
+#### http
 
 ```toml
 # http-only server
@@ -147,15 +141,16 @@ To use from environment, specify like so:
 # This is clearly not intended for production systems, DoH clients don't
 # support it anyway, and thus should be always turned off.
 #
-http.enable = false
-http.port = 80
+[http]
+  enable = false
+  port = 80
 ```
 
 To use from environment, specify like so:
 
 `docker run [..] -e HTTP.ENABLE=true -e HTTP.PORT=80 [..]`
 
-#### influx.*
+#### influx
 
 ```ini
 # Optional influxDB to report telemetry information
@@ -165,11 +160,12 @@ To use from environment, specify like so:
 # No additional information, e.g. queried hostnames, returned IP addresses,
 # source IPs, etc, is included in the telemetry.
 #
-influx.enable = false
-influx.url = ""
-influx.database = ""
-influx.username = ""
-influx.password = ""
+[influx]
+  enable = false
+  url = ""
+  database = ""
+  username = ""
+  password = ""
 ```
 
 To use from environment, specify like so:
