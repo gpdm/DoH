@@ -28,16 +28,16 @@ loglevel = 5
 # support it anyway, and thus should be always turned off.
 #
 [http]
-enable = false 
-port = 80
+    enable = false
+    port = 8080
 
 
 # settings for TLS HTTP/2 service (mandatory)
 #
 [tls]
-port = 443
-pkey = "./conf/private.key"
-cert = "./conf/public.crt"
+    port = 8443
+    pkey = "./conf/private.key"
+    cert = "./conf/public.crt"
 
 
 # DNS resolver
@@ -45,14 +45,14 @@ cert = "./conf/public.crt"
 # at least one host must be specified.
 # host must be reachable via UDP on port 53.
 # It's not currently possible to chain to other DoH or DoT servers.
-# 
+#
 # multiple hosts can be specified as shown below,
 # both in FQDN format or using IP(v4|6) addresses.
 #
-#   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ] 
+#   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ]
 #
 [dns]
-resolvers = [ "localhost" ]
+    resolvers = [ "1.1.1.1", "1.0.0.1" ]
 
 
 # Optional influxDB to report telemetry information
@@ -63,11 +63,11 @@ resolvers = [ "localhost" ]
 # source IPs, etc, is included in the telemetry.
 #
 [influx]
-enable = false
-url = ""
-database = ""
-username = ""
-password = ""
+    enable = false
+    url = ""
+    database = ""
+    username = ""
+    password = ""
 
 
 # *** NOT IMPLEMENTED YET -- THIS CONFIG IS CURRENTLY NON-FUNCTIONAL ***
@@ -80,8 +80,8 @@ password = ""
 # *** NOT IMPLEMENTED YET -- THIS CONFIG IS CURRENTLY NON-FUNCTIONAL ***
 #
 [redis]
-enable = false 
-addr = "localhost"
-port = "6379"
-username = ""
-password = ""
+    enable = false
+    addr = "localhost"
+    port = "6379"
+    username = ""
+    password = ""
