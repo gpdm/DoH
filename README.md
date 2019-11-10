@@ -96,7 +96,7 @@ To use from environment, specify like so:
 
 #### dns
 
-```conf
+```toml
 # DNS resolver
 #
 # at least one host must be specified.
@@ -152,7 +152,17 @@ To use from environment, specify like so:
 
 #### influx
 
-```ini
+The DoH daemon has some support to send limited telemetry information to InfluxDB.
+The idea is not to be a data collector, but provide meaningful statistical information,
+such as request and query counters, and in the future maybe also query runtime.
+If you want to receive telemetry, you'll have to enable it accordingly.
+By default, no telemetry information is sent.
+
+Here's an example of how this looks like:
+
+![Sample Influx Statistics](https://github.com/gpdm/DoH/blob/master/docs/influx_sample.png)
+
+```toml
 # Optional influxDB to report telemetry information
 #
 # Telemetry logging only includes counters for HTTP GET / POST requests,
