@@ -71,7 +71,7 @@ As you see, there's not too many options. A sample config file is provided benea
 This section covers available configuration directives.
 They can either be set from environment variables (useful for Docker), or from the configuration file.
 
-##### listen.address
+#### listen.address
 
 ```
 # default listen address.
@@ -85,7 +85,7 @@ To use from environment, specify like so:
 `docker run [..] -e LISTEN.ADDRESS="" [..]`
 
 
-##### log.level
+#### log.level
 
 ```
 # default log level
@@ -110,7 +110,7 @@ To use from environment, specify like so:
 NOTE: log level is also controlled from CLI, by providing `-verbose` (level=6) or `-debug` (level=7).
 
 
-##### dns.resolvers
+#### dns.resolvers
 
 ```
 # DNS resolver
@@ -132,7 +132,7 @@ To use from environment, specify like so:
 `docker run [..] -e DNS.RESOLVERS=$(192.0.2.1,192.0.2.2) [..]`
 
 
-##### tls.*
+#### tls.*
 
 ```
 # settings for TLS HTTP/2 service (mandatory)
@@ -147,7 +147,7 @@ To use from environment, specify like so:
 `docker run [..] -e TLS.PORT=443 -e TLS.PKEY=./conf/private.key -e TLS.CERT=./conf/public.crt [..]`
 
 
-##### http.*
+#### http.*
 
 ```
 # http-only server
@@ -167,7 +167,7 @@ To use from environment, specify like so:
 
 
 
-##### influx.*
+#### influx.*
 
 ```
 # Optional influxDB to report telemetry information
@@ -222,7 +222,7 @@ configured DNS resolvers of the Operating System.
 
 This not only that the queries pass-by your local resolvers, it also takes away some control from the local network administrator.
 
-Depending on the settings (.e.g. Firefox, see TRR[https://wiki.mozilla.org/Trusted_Recursive_Resolver]), the browser
+Depending on the settings (.e.g. Firefox, see [TRR](https://wiki.mozilla.org/Trusted_Recursive_Resolver), the browser
 can be taught to either ignore the local resolver entirely, or only take it into account *after* the DoH recursion.
 
 Going for privacy, this is great, as it bypasses any locally enforced DNS policy (.e.g to blocking of unwanted websites) at once.
