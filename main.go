@@ -56,7 +56,8 @@ import (
 
 func main() {
 	// set config defaults
-	viper.SetDefault("listen.address", "")
+	viper.SetDefault("global.listen", "")
+	viper.SetDefault("global.loglevel", goDoh.LogNotice)
 	viper.SetDefault("http.enable", false)
 	viper.SetDefault("http.port", "80")
 	viper.SetDefault("tls.port", "443")
@@ -73,7 +74,6 @@ func main() {
 	viper.SetDefault("influx.database", nil)
 	viper.SetDefault("influx.username", nil)
 	viper.SetDefault("influx.password", nil)
-	viper.SetDefault("log.level", goDoh.LogNotice)
 	// set default config file locations
 	viper.SetConfigName("DoH")
 	viper.AddConfigPath("/etc/DoH/")
@@ -91,10 +91,10 @@ func main() {
 
 	// reflect CLI args to viper
 	if *rtVerbose {
-		viper.Set("log.level", goDoh.LogInform)
+		viper.Set("global.loglevel", goDoh.LogInform)
 	}
 	if *rtDebug {
-		viper.Set("log.level", goDoh.LogDebug)
+		viper.Set("global.loglevel", goDoh.LogDebug)
 	}
 
 	// perform config file/path location override magic, if given from CLI
@@ -149,7 +149,7 @@ func main() {
 		wg.Add(1)
 		go func() {
 			goDoh.ConsoleLogger(goDoh.LogEmerg,
-				http.ListenAndServe(fmt.Sprintf("%s:%s", viper.GetString("listen.address"), viper.GetString("http.port")), router),
+				http.ListenAndServe(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("http.port")), router),
 				true)
 		}()
 		goDoh.ConsoleLogger(goDoh.LogNotice, "HTTP Server started", false)
@@ -159,7 +159,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		goDoh.ConsoleLogger(goDoh.LogEmerg,
-			http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("listen.address"), viper.GetString("tls.port")),
+			http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("tls.port")),
 				viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router),
 			true)
 	}()

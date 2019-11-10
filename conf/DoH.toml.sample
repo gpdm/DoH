@@ -1,7 +1,8 @@
+[global]
 # default listen address.
 # set to "" to list to all addresses (default)
 #
-listen.address = ""
+listen = ""
 
 
 # default log level
@@ -16,7 +17,7 @@ listen.address = ""
 # Information = 6   # also controlled from cli using -verbose switch: add's some diagnostics information
 # Debug = 7         # also controlled from cli using -debug switch: very chatty and fully verbose
 #
-log.level = 5
+loglevel = 5
 
 
 # http-only server
@@ -26,15 +27,17 @@ log.level = 5
 # This is clearly not intended for production systems, DoH clients don't
 # support it anyway, and thus should be always turned off.
 #
-http.enable = false 
-http.port = 80
+[http]
+enable = false 
+port = 80
 
 
 # settings for TLS HTTP/2 service (mandatory)
 #
-tls.port = 443
-tls.pkey = "./conf/private.key"
-tls.cert = "./conf/public.crt"
+[tls]
+port = 443
+pkey = "./conf/private.key"
+cert = "./conf/public.crt"
 
 
 # DNS resolver
@@ -48,7 +51,8 @@ tls.cert = "./conf/public.crt"
 #
 #   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ] 
 #
-dns.resolvers = [ "localhost" ]
+[dns]
+resolvers = [ "localhost" ]
 
 
 # Optional influxDB to report telemetry information
@@ -58,11 +62,12 @@ dns.resolvers = [ "localhost" ]
 # No additional information, e.g. queried hostnames, returned IP addresses,
 # source IPs, etc, is included in the telemetry.
 #
-influx.enable = false
-influx.url = ""
-influx.database = ""
-influx.username = ""
-influx.password = ""
+[influx]
+enable = false
+url = ""
+database = ""
+username = ""
+password = ""
 
 
 # *** NOT IMPLEMENTED YET -- THIS CONFIG IS CURRENTLY NON-FUNCTIONAL ***
@@ -74,8 +79,9 @@ influx.password = ""
 # the backend a little bit.
 # *** NOT IMPLEMENTED YET -- THIS CONFIG IS CURRENTLY NON-FUNCTIONAL ***
 #
-redis.enable = false 
-redis.addr = "localhost"
-redis.port = "6379"
-redis.username = ""
-redis.password = ""
+[redis]
+enable = false 
+addr = "localhost"
+port = "6379"
+username = ""
+password = ""

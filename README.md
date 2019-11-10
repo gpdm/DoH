@@ -77,15 +77,15 @@ They can either be set from environment variables (useful for Docker), or from t
 # default listen address.
 # set to "" to list to all addresses (default)
 #
-listen.address = ""
+listen = ""
 ```
 
 To use from environment, specify like so:
 
-`docker run [..] -e LISTEN.ADDRESS="" [..]`
+`docker run [..] -e GLOBAL.LISTEN="" [..]`
 
 
-#### log.level
+#### global.loglevel
 
 ```
 # default log level
@@ -100,12 +100,12 @@ To use from environment, specify like so:
 # Information = 6   # also controlled from cli using -verbose switch: add's some diagnostics information
 # Debug = 7         # also controlled from cli using -debug switch: very chatty and fully verbose
 #
-log.level = 5
+loglevel = 5
 ```
 
 To use from environment, specify like so:
 
-`docker run [..] -e LOG.LEVEL=7 [..]`
+`docker run [..] -e GLOBAL.LOGLEVEL=7 [..]`
 
 NOTE: log level is also controlled from CLI, by providing `-verbose` (level=6) or `-debug` (level=7).
 
@@ -182,7 +182,7 @@ influx.url = ""
 influx.database = ""
 influx.username = ""
 influx.password = ""
-````
+```
 
 To use from environment, specify like so:
 

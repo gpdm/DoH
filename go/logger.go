@@ -77,7 +77,7 @@ const LogDebug uint = 0b00000111
 func ConsoleLogger(logPriority uint, logMessage interface{}, fatal bool) {
 
 	// skip logging output if priority does not match configured log level
-	if logPriority > viper.GetUint("log.level") {
+	if logPriority > viper.GetUint("global.loglevel") {
 		return
 	}
 
