@@ -1,10 +1,41 @@
 /*
- * API DoH
+ * go DoH Daemon - HTTP API
  *
- * This is a DNS-over-HTTP (DoH) resolver written in Go.
+ * This is the "DNS over HTTP" (DoH) API functions library.
  *
- * API version: 0.1
- * Contact: dev@phunsites.net
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *
+ * Provided to you under the terms of the BSD 3-Clause License
+ *
+ * Copyright (c) 2019. Gianpaolo Del Matto, https://github.com/gpdm, <delmatto _ at _ phunsites _ dot _ net>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 
 package dohservice
@@ -23,17 +54,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/net/dns/dnsmessage"
 )
-
-// sendError is a helper to construct meaningful error messages
-// returned to the client
-func sendError(w http.ResponseWriter, httpStatusCode int, errorMessage string) {
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(httpStatusCode)
-	fmt.Fprintf(w, errorMessage)
-	ConsoleLogger(LogDebug, errorMessage, false)
-
-	return
-}
 
 // parseDNSQuestion inspects the DNS question from the payload packet,
 // and implements some minimum logging output.
@@ -78,11 +98,10 @@ func sendDNSRequest(dnsRequestData []byte) ([]byte, error) {
 
 	// open UDP connection to DNS resolver
 	udpConn, udpConnErr := net.Dial("udp", fmt.Sprintf("%s:53", dnsResolver))
-	defer udpConn.Close()
-
 	if udpConnErr != nil {
 		return nil, udpConnErr
 	}
+	defer udpConn.Close()
 
 	// send DNS request to resolver
 	udpConn.Write(dnsRequestData)

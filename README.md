@@ -132,7 +132,7 @@ To use from environment, specify like so:
 `docker run [..] -e DNS.RESOLVERS=$(192.0.2.1,192.0.2.2) [..]`
 
 
-#### tls.*
+#### tls.*
 
 ```
 # settings for TLS HTTP/2 service (mandatory)
@@ -188,6 +188,23 @@ To use from environment, specify like so:
 
 `docker run [..] -e INFLUX.ENABLE=true -e INFLUX.URL=... -e INFLUX.USERNAME=... INFLUX.PASSWORD=... [..]`
 
+
+
+## Client Configuration
+
+To use your own DoH instance, the client must be configured accordingly.
+
+### Configuring TRR in Firefox
+
+[Trusted Recursive Resolvers](https://wiki.mozilla.org/Trusted_Recursive_Resolver) are configured in Firefox from `about:config`.
+
+Search for any `trr` related config properties. The ones to change are these:
+
+* `network.trr.uri`: put the https URL to your DOH instance here
+* `network.trr.custom_uri`: same as above
+* optional: `network.trr.useGET`: `false` by default. If you want to play around and see how GET and POST make a difference, set it to `true`
+* optional: `network.trr.mode`: `2` to enable DoH, and use it first, then fallback. Otherwise `3` to use DoH only. `0` to disable DoH
+* mandatory: `network.trr.bootstrapAddress` must be IP address of your DoH resolver, if you set `network.trr.mode=3`.
 
 
 ## A Personal Opinion on DoH
@@ -282,3 +299,4 @@ Here's the list of still missing things to be done, in order of priority:
 * Rework DNS backend support: Support both DNS-over-TLS and DNS-over-HTTP resolvers as well
 * Relay internal log data to remote Syslog server
 * More code cleanups
+* Documentation ...
