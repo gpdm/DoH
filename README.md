@@ -65,7 +65,7 @@ As you see, there's not too many options. A sample config file is provided benea
 This section covers available configuration directives.
 They can either be set from environment variables (useful for Docker), or from the configuration file.
 
-#### listen.address
+#### global.listen
 
 ```toml
 # default listen address.
