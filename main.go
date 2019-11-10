@@ -54,7 +54,10 @@ import (
 	goDoh "github.com/gpdm/DoH/go"
 )
 
-func main() {
+// setRuntimeConfig initializes the configuration defaults,
+// parses configuration settings from the environment,
+// potentially existing config files, and finally from CLI args
+func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 	// set config defaults
 	viper.SetDefault("global.listen", "")
 	viper.SetDefault("global.loglevel", goDoh.LogNotice)
@@ -74,68 +77,100 @@ func main() {
 	viper.SetDefault("influx.database", nil)
 	viper.SetDefault("influx.username", nil)
 	viper.SetDefault("influx.password", nil)
+
 	// set default config file locations
 	viper.SetConfigName("DoH")
 	viper.AddConfigPath("/etc/DoH/")
 	viper.AddConfigPath("./conf")
-	// enable config handling for env vars
+
+	// enable automatic config handling for env vars
 	viper.AutomaticEnv()
-	// wait group for go routines
-	var wg sync.WaitGroup
-
-	// accept optional override for config file from CLI
-	cfConfigFile := flag.String("configfile", "", "config file (optional)")
-	rtVerbose := flag.Bool("verbose", false, "verbose mode")
-	rtDebug := flag.Bool("debug", false, "debug mode")
-	flag.Parse()
-
-	// reflect CLI args to viper
-	if *rtVerbose {
-		viper.Set("global.loglevel", goDoh.LogInform)
-	}
-	if *rtDebug {
-		viper.Set("global.loglevel", goDoh.LogDebug)
-	}
 
 	// perform config file/path location override magic, if given from CLI
-	if *cfConfigFile != "" {
-		_, err := os.Stat(*cfConfigFile)
+	if configFile != "" {
+		_, err := os.Stat(configFile)
 
 		if !os.IsNotExist(err) {
-			goDoh.ConsoleLogger(goDoh.LogNotice, fmt.Sprintf("using config file from: %s", *cfConfigFile), false)
-			viper.SetConfigFile(*cfConfigFile)
+			goDoh.ConsoleLogger(goDoh.LogNotice, fmt.Sprintf("using config file from: %s", configFile), false)
+			viper.SetConfigFile(configFile)
 
 		} else if os.IsNotExist(err) {
-			goDoh.ConsoleLogger(goDoh.LogEmerg, fmt.Sprintf("error accessing '%s': %s", *cfConfigFile, err), true) // fatal=true, will cause immediate exit
+			goDoh.ConsoleLogger(goDoh.LogEmerg, fmt.Sprintf("error accessing '%s': %s", configFile, err), true) // fatal=true, will cause immediate exit
 		}
 	}
 
 	// read configuration, and bail out on parser error
 	if err := viper.ReadInConfig(); err != nil {
+		// next line catches all errors, *except* file-not-found
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			goDoh.ConsoleLogger(goDoh.LogEmerg, err, true) // fatal=true, will cause immediate exit
 		}
 	}
 
-	// bail out on missing cert/key files
-	if _, err := os.Stat(viper.GetString("tls.pkey")); err != nil {
-		goDoh.ConsoleLogger(goDoh.LogEmerg, fmt.Sprintf("Error accessing TLS private key: %s", err), true) // fatal=true, will cause immediate exit
+	// permit overrides to log level from CLI.
+	// this takes the highest precedence, and overrides
+	// any potentially given config settings from ENV or config file.
+	//
+	// '-debug' takes precendence over '-verbose'
+	if logVerbose { // overrides default log level
+		viper.Set("global.loglevel", goDoh.LogInform)
 	}
-	if _, err := os.Stat(viper.GetString("tls.cert")); err != nil {
-		goDoh.ConsoleLogger(goDoh.LogEmerg, fmt.Sprintf("Error accessing TLS certificate: %s", err), true) // fatal=true, will cause immediate exit
+	if logDebug { // overrides previous log level
+		viper.Set("global.loglevel", goDoh.LogDebug)
 	}
-
-	// FIXME
-	// validate influxDB config
-	// --missing-stuff-goes-here--
-
-	// FIXME
-	// validate redis config
-	// --missing-stuff-goes-here--
 
 	// print runtime configuration in verbose mode
 	b, _ := json.MarshalIndent(viper.AllSettings(), "", "  ")
 	goDoh.ConsoleLogger(goDoh.LogInform, fmt.Sprintf("Runtime Configuration dump:\n%s\n", string(b)), false)
+}
+
+// sanitizeRuntimeConfig applies some sanity checking against given
+// configuration settings, and bails out if an error is encountered
+func sanitizeRuntimeConfig() {
+	// All calls to ConsoleLogger() set fatal=true,
+	// which enforces an immediate abort from inside our logging routine.
+
+	// bail out on missing cert/key files
+	//
+	if _, err := os.Stat(viper.GetString("tls.pkey")); err != nil {
+		goDoh.ConsoleLogger(goDoh.LogEmerg, fmt.Sprintf("Error accessing TLS private key: %s", err), true)
+	}
+	if _, err := os.Stat(viper.GetString("tls.cert")); err != nil {
+		goDoh.ConsoleLogger(goDoh.LogEmerg, fmt.Sprintf("Error accessing TLS certificate: %s", err), true)
+	}
+
+	// bail out on missing influxDB config
+	//
+	if viper.GetBool("influx.enable") && (viper.GetString("influx.url") == "" || viper.GetString("influx.username") == "" || viper.GetString("influx.password") == "" || viper.GetString("influx.database") == "") {
+		goDoh.ConsoleLogger(goDoh.LogEmerg, "InfluxDB is enabled, but one or more required config values is not properly set.", true)
+	}
+
+	// bail out on missing influxDB config
+	//
+	if viper.GetBool("redis.enable") && (viper.GetString("redis.addr") == "" || viper.GetString("redis.port") == "" || viper.GetString("redis.username") == "" || viper.GetString("redis.password") == "") {
+		goDoh.ConsoleLogger(goDoh.LogEmerg, "Redis is enabled, but one or more required config values is not properly set.", true)
+	}
+
+}
+
+// main is our main routine
+func main() {
+	// wait group for go routines
+	var wg sync.WaitGroup
+
+	// our minimalistic CLI args support:
+	// - accept optional override for config file
+	// - also accept --verbose and --debug switches
+	cfConfigFile := flag.String("configfile", "", "config file (optional)")
+	rtVerbose := flag.Bool("verbose", false, "verbose mode")
+	rtDebug := flag.Bool("debug", false, "debug mode")
+	flag.Parse()
+
+	// assemble our runtime configuration
+	setRuntimeConfig(*rtVerbose, *rtDebug, *cfConfigFile)
+
+	// sanitize our config
+	sanitizeRuntimeConfig()
 
 	// initialize influxDB telemetry collector
 	TelemetryChannel := make(chan uint, 4096)
