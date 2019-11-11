@@ -94,7 +94,6 @@ func NewRouter(chanTelemetry chan uint) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	for _, route := range routers {
 		var handler http.Handler
-		//handler = route.HandlerFunc
 		handler = httpHandler(route.HandlerFunc, route.Name, chanTelemetry)
 
 		router.
