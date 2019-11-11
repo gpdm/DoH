@@ -46,29 +46,31 @@ import (
 	"github.com/spf13/viper"
 )
 
-// LogEmerg is a Syslog-type priority for Emergency messages
-const LogEmerg uint = 0b00000000
+const (
+	// LogEmerg is a Syslog-type priority for Emergency messages
+	LogEmerg uint = iota
 
-// LogAlert is a Syslog-type priority for Alert messages
-const LogAlert uint = 0b00000001
+	// LogAlert is a Syslog-type priority for Alert messages
+	LogAlert
 
-// LogCrit is a Syslog-type priority for Critical messages
-const LogCrit uint = 0b00000010
+	// LogCrit is a Syslog-type priority for Critical messages
+	LogCrit
 
-// LogErr is a Syslog-type priority for Error messages
-const LogErr uint = 0b00000011
+	// LogErr is a Syslog-type priority for Error messages
+	LogErr
 
-// LogWarn is a Syslog-type priority for Warning messages
-const LogWarn uint = 0b00000100
+	// LogWarn is a Syslog-type priority for Warning messages
+	LogWarn
 
-// LogNotice is a Syslog-type priority for Notice messages
-const LogNotice uint = 0b00000101
+	// LogNotice is a Syslog-type priority for Notice messages
+	LogNotice
 
-// LogInform is a Syslog-type priority for Informational messages
-const LogInform uint = 0b00000110
+	// LogInform is a Syslog-type priority for Informational messages
+	LogInform
 
-// LogDebug is a Syslog-type priority for Debug messages
-const LogDebug uint = 0b00000111
+	// LogDebug is a Syslog-type priority for Debug messages
+	LogDebug
+)
 
 // ConsoleLogger is a wrapper to the standard logging function.
 // In order to not clutter the code all over with if-else's to cope

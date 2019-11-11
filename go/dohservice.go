@@ -41,7 +41,6 @@
 package dohservice
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -86,48 +85,45 @@ func parseDNSQuestion(reqData []byte) error {
 	return nil
 }
 
+func init() {
+	// Only seed once.
+	rand.Seed(time.Now().Unix())
+}
+
 /*
  * sendDNSRequest()
  *
  * send a DNS request to the resolver and return it's response
  */
-func sendDNSRequest(dnsRequestData []byte) ([]byte, error) {
-	// select a random DNS resolver
-	rand.Seed(time.Now().Unix())
+func sendDNSRequest(request []byte) ([]byte, error) {
+	// select a random DNS resolver.
 	dnsResolver := viper.GetStringSlice("dns.resolvers")[rand.Intn(len(viper.GetStringSlice("dns.resolvers")))]
 
 	// open UDP connection to DNS resolver
-	udpConn, udpConnErr := net.Dial("udp", fmt.Sprintf("%s:53", dnsResolver))
-	if udpConnErr != nil {
-		return nil, udpConnErr
+	udpConn, err := net.Dial("udp", fmt.Sprintf("%s:53", dnsResolver))
+	if err != nil {
+		return nil, err
 	}
 	defer udpConn.Close()
-
-	// send DNS request to resolver
-	udpConn.Write(dnsRequestData)
-
-	// traditional DNS is limited to 512 bytes,
-	// while EDNS supports up to 2K. We'll go with a 2K buffer
-	//
-	// this may need fixing. we should not read a fixed buffer,
-	// but meabe read-until-EOF, although single-buffer read is
-	// most likely faster
-	dnsResponseDataRaw := make([]byte, 2048)
-	dnsResponseLength, dnsResponseErr := bufio.NewReader(udpConn).Read(dnsResponseDataRaw)
-	if dnsResponseErr != nil {
-		return nil, dnsResponseErr
+	timeout := time.Now().Add(time.Second * 30) // TODO: Make this configurable.
+	if err := udpConn.SetDeadline(timeout); err != nil {
+		return nil, fmt.Errorf("could not set deadline on udp conn: %w", err)
 	}
 
-	// !!! NOTE !!!
-	// this needs fixing:
-	//
-	// because of our fixed-size buffer allocation, response is a zero-padded slice.
-	// the code below initializes a new slice with the real payload length received,
-	// and copies the RAW slice over. All excess bytes will overflow and be truncated.
-	dnsResponseData := make([]byte, dnsResponseLength)
-	copy(dnsResponseData, dnsResponseDataRaw)
+	// send DNS request to resolver
+	if _, err := udpConn.Write(request); err != nil {
+		return nil, fmt.Errorf("could not send DNS request upstream: %w", err)
+	}
 
-	return dnsResponseData, nil
+	// Traditional DNS is limited to 512 bytes, while EDNS supports up to 2K.
+	// We'll go with a 2K buffer.
+	response := make([]byte, 2048)
+	n, err := udpConn.Read(response)
+	if err != nil {
+		return nil, fmt.Errorf("could not receive DNS response from upstream: %w", err)
+	}
+
+	return response[:n], nil // Cut the slice to the number of bytes received.
 }
 
 // commonDNSRequestHandler is the shared backend routine, invoked from either
@@ -137,9 +133,9 @@ func sendDNSRequest(dnsRequestData []byte) ([]byte, error) {
 // If the DNS question is deemed valid, the query is passed over to the
 // DNS server.
 func commonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest []byte) {
-	var ccNoCache bool = false // default for Cache-Control: NoCache is FALSE (means: reply from cache)
-	var ccNoStore bool = false // default for Cache-Control: NoStore is FALSE (means: store to cache)
-	_ = ccNoCache              // FIXME: backend code for ccNoCache not there yet. Silence compiler warning using this directive
+	var ccNoCache = false // default for Cache-Control: NoCache is FALSE (means: reply from cache)
+	var ccNoStore = false // default for Cache-Control: NoStore is FALSE (means: store to cache)
+	_ = ccNoCache         // FIXME: backend code for ccNoCache not there yet. Silence compiler warning using this directive
 
 	// bail out if DNS request is smaller than 28 bytes
 	if len(dnsRequest) < 28 {
@@ -160,16 +156,15 @@ func commonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest [
 	}
 
 	// parse the DNS question
-	dnsQuestionErr := parseDNSQuestion(dnsRequest)
-	if dnsQuestionErr != nil {
-		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error in DNS question: %s", dnsQuestionErr))
+	if err := parseDNSQuestion(dnsRequest); err != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error in DNS question: %s", err))
 		return
 	}
 
 	// FIXME: implement server-side cache, but honor ccNoCache
-	dnsResponse, dnsResponseErr := sendDNSRequest(dnsRequest)
-	if dnsResponseErr != nil {
-		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", dnsResponseErr))
+	dnsResponse, err := sendDNSRequest(dnsRequest)
+	if err != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", err))
 		return
 	}
 	// FIXME: implement server-side cache, but honor ccNoStore
@@ -206,8 +201,8 @@ func commonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest [
 func DNSQueryGet(w http.ResponseWriter, r *http.Request) {
 
 	// validate 'dns' attribute from GET request arguments
-	argDNS, queryParseSuccess := r.URL.Query()["dns"]
-	if !queryParseSuccess || len(argDNS[0]) < 1 || len(argDNS) > 1 {
+	argDNS, ok := r.URL.Query()["dns"]
+	if !ok || len(argDNS[0]) < 1 || len(argDNS) > 1 {
 		// bail out if 'dns' is omitted, zero-length or occurs multiple times
 		sendError(w, http.StatusBadRequest, "Mandatory 'dns' request parameter is either not set, empty, or defined multiple times")
 		return
@@ -215,9 +210,9 @@ func DNSQueryGet(w http.ResponseWriter, r *http.Request) {
 
 	// decode the DNS request
 	// NOTE: this uses RFC4648 URL encoding *without* padding
-	dnsRequest, base64DecodeErr := base64.RawURLEncoding.DecodeString(argDNS[0])
-	if base64DecodeErr != nil {
-		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error decoding DNS request data from Base64: %s", base64DecodeErr))
+	dnsRequest, err := base64.RawURLEncoding.DecodeString(argDNS[0])
+	if err != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error decoding DNS request data from Base64: %s", err))
 		return
 	}
 
