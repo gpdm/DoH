@@ -32,15 +32,35 @@ to run a local DoH service yourself.
 
 ### Running with Docker
 
-it's the primarily intended mode of operations to run the DoH daemon from Docker.
+It is the primarily intended mode of operations to run the DoH daemon trough Docker.
 
 ```bash
-docker run .....
+docker pull gpdm/doh[:<tag>]
 ```
+
+tags:
+
+* `latest` for most recent (but also potentially most broken / unstable) build
+* other version-specific tags (if any) for frozen / stable builds
+
+then run it as follows:
+
+```bash
+docker run -d \
+   [-p 8080:8080] \
+   -p 8443:8443 \
+   -v /path/to/doh/conf:/conf \
+   -e [ENV-VARS]
+   gpdm/doh[:<tag>]
+```
+
+Configuration can be done from both entvironment vars, or a config file, see also config section below.
+To use the config file, or to pass over TLS certificates, use a volume mount to `/conf`.
+
 
 ### CRIY (Compile and Run It Yourself)
 
-To compile your self, do this in the source directory:
+To compile the binary yourself, do this in the source directory:
 
 ```bash
 go build
@@ -122,6 +142,7 @@ To use from environment, specify like so:
 # settings for TLS HTTP/2 service (mandatory)
 #
 [tls]
+  enable = true
   port = 443
   pkey = "./conf/private.key"
   cert = "./conf/public.crt"
@@ -129,7 +150,7 @@ To use from environment, specify like so:
 
 To use from environment, specify like so:
 
-`docker run [..] -e TLS.PORT=443 -e TLS.PKEY=./conf/private.key -e TLS.CERT=./conf/public.crt [..]`
+`docker run [..] -e TLS.ENABLE=1 -e TLS.PORT=443 -e TLS.PKEY=./conf/private.key -e TLS.CERT=./conf/public.crt [..]`
 
 #### http
 
@@ -138,8 +159,9 @@ To use from environment, specify like so:
 # according to RFC8484, DoH must only be supported via TLS on HTTP/2
 # However, for development purposes, the http-plain mode can be helpful,
 # i.e. to capture wire format traffic.
-# This is clearly not intended for production systems, DoH clients don't
-# support it anyway, and thus should be always turned off.
+# When running in Docker, it may be also indiciated to expose the service
+# through plain-text HTTP, and run it behind a frontend load-balancer,
+# which does the TLS offloading.
 #
 [http]
   enable = false
@@ -294,5 +316,8 @@ Here's the list of still missing things to be done, in order of priority:
 * Telemetry for DNS response time per queried DNS server
 * Rework DNS backend support: Support both DNS-over-TLS and DNS-over-HTTP resolvers as well
 * Relay internal log data to remote Syslog server
-* More code cleanups
-* Documentation ...
+
+
+## Acknowledgements
+
+Thanks to [@hoempf](https://github.com/hoempf) for some helpful hints and the Dockerfile template, to build the minimalistic Docker image.

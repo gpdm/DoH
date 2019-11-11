@@ -24,8 +24,9 @@ loglevel = 5
 # according to RFC8484, DoH must only be supported via TLS on HTTP/2
 # However, for development purposes, the http-plain mode can be helpful,
 # i.e. to capture wire format traffic.
-# This is clearly not intended for production systems, DoH clients don't
-# support it anyway, and thus should be always turned off.
+# When running in Docker, it may be also indiciated to expose the service
+# through plain-text HTTP, and run it behind a frontend load-balancer,
+# which does the TLS offloading.
 #
 [http]
     enable = false
