@@ -2,3 +2,4 @@ conf/*.key
 conf/*.crt
 conf/*.toml
 DoH
+.DS_Store
