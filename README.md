@@ -317,7 +317,6 @@ Here's the list of still missing things to be done, in order of priority:
 * Rework DNS backend support: Support both DNS-over-TLS and DNS-over-HTTP resolvers as well
 * Relay internal log data to remote Syslog server
 
-
 ## Acknowledgements
 
 Thanks to [@hoempf](https://github.com/hoempf) for some helpful hints and the Dockerfile template, to build the minimalistic Docker image.
