@@ -197,6 +197,7 @@ func main() {
 	if viper.GetBool("http.enable") {
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			goDoH.ConsoleLogger(goDoH.LogEmerg,
 				http.ListenAndServe(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("http.port")), router),
 				true)
@@ -207,6 +208,7 @@ func main() {
 	// fire up TLS HTTP/2 server
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		goDoH.ConsoleLogger(goDoH.LogEmerg,
 			http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("tls.port")),
 				viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router),
