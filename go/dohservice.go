@@ -54,6 +54,13 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 )
 
+// init is the package int function
+func init() {
+	// random seed
+	// we need this i.e. for doing randomized selection of DNS backend
+	rand.Seed(time.Now().Unix())
+}
+
 // parseDNSQuestion inspects the DNS question from the payload packet,
 // and implements some minimum logging output.
 func parseDNSQuestion(reqData []byte) error {
@@ -83,11 +90,6 @@ func parseDNSQuestion(reqData []byte) error {
 	}
 
 	return nil
-}
-
-func init() {
-	// Only seed once.
-	rand.Seed(time.Now().Unix())
 }
 
 /*
@@ -123,7 +125,11 @@ func sendDNSRequest(request []byte) ([]byte, error) {
 		return nil, fmt.Errorf("could not receive DNS response from upstream: %w", err)
 	}
 
-	return response[:n], nil // Cut the slice to the number of bytes received.
+	// because of our fixed-size buffer allocation above, we may end up with a zero-padded slice,
+	// i.e. if we processed a standard 512-byte or less packet.
+	// The payload must not be padded, so on return we
+	// simply cut the slice to the number of bytes received.
+	return response[:n], nil
 }
 
 // commonDNSRequestHandler is the shared backend routine, invoked from either
