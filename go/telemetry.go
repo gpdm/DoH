@@ -97,6 +97,9 @@ const TelemetryHTTPRequestTypeGet uint = 0b0000001000000000
 // TelemetryHTTPRequestTypePost is an arbitary type to track HTTP POST requests
 const TelemetryHTTPRequestTypePost uint = 0b0000001000000001
 
+// TelemetryKeepAlive is a generic type to track internal keep-alive
+const TelemetryKeepAlive uint = 0b1111111111111111
+
 // TelemetryValues serves as a lookup table to map given keywords to a binary type.
 // The binary type will be reflected over the IPC channel,
 // in order to not fummel around with string literals
@@ -117,6 +120,7 @@ var TelemetryValues = map[string]uint{
 	"TypeSRV":   TelemetryDNSRequestTypeSRV,
 	"TypeTXT":   TelemetryDNSRequestTypeTXT,
 	"TypeWKS":   TelemetryDNSRequestTypeWKS,
+	"KeepAlive": TelemetryKeepAlive,
 }
 
 // telemetryData maps the binary values back onto a more useful map,
@@ -192,6 +196,11 @@ var telemetryData = map[uint]map[string]interface{}{
 	TelemetryDNSRequestTypeWKS: {
 		"RequestCategory": "DNS",
 		"RequestType":     "TypeWKS",
+		"RequestCounter":  0,
+	},
+	TelemetryKeepAlive: {
+		"RequestCategory": "KeepAlive",
+		"RequestType":     "KeepAlive",
 		"RequestCounter":  0,
 	},
 }
@@ -287,6 +296,29 @@ func sendMetrics(c client.Client) {
 	}
 }
 
+// telemetryKeepAlive is a go routine, which triggers an internal keep alive every 60 seconds.
+// This ensures that we send a time series update to Influx, even if we didn't observe
+// any stats updates from concurrent web and dns routines.
+// This prevents "gaps" in the Influx time series.
+func telemetryKeepAlive(chanTelemetry chan uint) {
+	lastKeepAlive := time.Now()
+
+	for {
+		// since we run async, sleep 5 seconds on every iteration
+		// in order to not waste too many cycles
+		time.Sleep(5 * time.Second)
+
+		// check if we elapsed already 60 seconds
+		// to send a telemtry keep-alive
+		if time.Since(lastKeepAlive).Seconds() >= 60 {
+			chanTelemetry <- TelemetryValues["KeepAlive"]
+			ConsoleLogger(LogDebug, "Logging Telemetry keep-alive.", false)
+
+			lastKeepAlive = time.Now() // reset the timer
+		}
+	}
+}
+
 // TelemetryCollector receives information from other
 // go routines and forwards them to InfluxDB
 func TelemetryCollector(chanTelemetry chan uint) {
@@ -319,6 +351,9 @@ func TelemetryCollector(chanTelemetry chan uint) {
 	// connect to InfluxDB
 	c := influxDBClient()
 	defer c.Close()
+
+	// ensure that we receive an internal keep-alive every 60 seconds
+	go telemetryKeepAlive(chanTelemetry)
 
 	// stay in loop forever
 	for {
