@@ -323,7 +323,9 @@ func telemetryKeepAlive(chanTelemetry chan uint) {
 // go routines and forwards them to InfluxDB
 func TelemetryCollector(chanTelemetry chan uint) {
 	// track when Telemetry was last comitted to InfluxDB
-	var telemetryLastUpdate = time.Now().Unix()
+	var tick = time.Tick(time.Second * 60) // Keepalive ticker.
+	var tock = time.Tick(time.Second * 2)  // Aggregation interval.
+
 	// register global telemetry channel
 	telemetryChannel = chanTelemetry
 
@@ -335,50 +337,52 @@ func TelemetryCollector(chanTelemetry chan uint) {
 	// The alternative would be to clutter the code with if-else's.
 	// The expense for not doing this, is to do the extra-roundtrip to the
 	// collector, and simply throw away the data.
-	//
-	if !viper.GetBool("influx.enable") {
-		ConsoleLogger(LogInform, "InfluxDB Telemetry Forwarding is disabled.", false)
-
-		// stay in loop forever
-		for {
-			// discard telemetry data
-			_ = <-chanTelemetry
-			ConsoleLogger(LogDebug, "Received Telemetry was internally discarded.", false)
-		}
-		// we never end up here since the loop has no break condition
-	}
+	influxEnabled := viper.GetBool("influx.enable")
 
 	// connect to InfluxDB
-	c := influxDBClient()
-	defer c.Close()
-
-	// ensure that we receive an internal keep-alive every 60 seconds
-	go telemetryKeepAlive(chanTelemetry)
+	var c client.Client
+	if influxEnabled {
+		c = influxDBClient()
+		defer c.Close()
+	}
 
 	// stay in loop forever
 	for {
-		// consume telemetry data
-		// telemetry data will consist of a binary value
-		receivedTelemetry := <-chanTelemetry
-		ConsoleLogger(LogDebug, fmt.Sprintf("Received incoming telemetry: %s", telemetryData[receivedTelemetry]["RequestType"]), false)
+		select {
+		case <-tick:
+			// We got a keepalive.
+			chanTelemetry <- TelemetryValues["KeepAlive"]
+			ConsoleLogger(LogDebug, "Logging Telemetry keep-alive.", false)
+		case receivedTelemetry := <-chanTelemetry:
+			// Only send to influx if it's enabled.
+			if !influxEnabled {
+				ConsoleLogger(LogDebug, "Received Telemetry was internally discarded.", false)
+				continue
+			}
 
-		// telemetry counters use the telemetry's value as the key,
-		// so we can just throw it in to the map in order to increment the counters
-		telemetryData[receivedTelemetry]["RequestCounter"] = (telemetryData[receivedTelemetry]["RequestCounter"].(int)) + 1
-		ConsoleLogger(LogDebug, fmt.Sprint("New Count for telementry: ", telemetryData), false)
+			// Consume telemetry data.
+			// Telemetry data will consist of a binary value.
+			ConsoleLogger(LogDebug, fmt.Sprintf("Received incoming telemetry: %s", telemetryData[receivedTelemetry]["RequestType"]), false)
 
-		// send new aggregate telemetry information to InfluxDB
-		// only every other second
-		if time.Now().Unix() > telemetryLastUpdate+1 {
-			ConsoleLogger(LogDebug, "InfluxDB: sending telemetry update", false)
-			sendMetrics(c)
+			// telemetry counters use the telemetry's value as the key,
+			// so we can just throw it in to the map in order to increment the counters
+			telemetryData[receivedTelemetry]["RequestCounter"] = (telemetryData[receivedTelemetry]["RequestCounter"].(int)) + 1
+			ConsoleLogger(LogDebug, fmt.Sprint("New Count for telementry: ", telemetryData), false)
 
-			// reset counters
-			ConsoleLogger(LogDebug, "Resetting telemtry counters", false)
-			resetCounters()
+			// send new aggregate telemetry information to InfluxDB
+			// only every other second
+			select {
+			case <-tock:
+				// It's time to send a telemetry update.
+				ConsoleLogger(LogDebug, "InfluxDB: sending telemetry update", false)
+				sendMetrics(c)
 
-			// refresh last update timestamp
-			telemetryLastUpdate = time.Now().Unix()
+				// reset counters
+				ConsoleLogger(LogDebug, "Resetting telemtry counters", false)
+				resetCounters()
+			default:
+				// Nope, not yet.
+			}
 		}
 	}
 	// we never end up here since the loop has no break condition
