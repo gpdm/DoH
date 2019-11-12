@@ -296,29 +296,6 @@ func sendMetrics(c client.Client) {
 	}
 }
 
-// telemetryKeepAlive is a go routine, which triggers an internal keep alive every 60 seconds.
-// This ensures that we send a time series update to Influx, even if we didn't observe
-// any stats updates from concurrent web and dns routines.
-// This prevents "gaps" in the Influx time series.
-func telemetryKeepAlive(chanTelemetry chan uint) {
-	lastKeepAlive := time.Now()
-
-	for {
-		// since we run async, sleep 5 seconds on every iteration
-		// in order to not waste too many cycles
-		time.Sleep(5 * time.Second)
-
-		// check if we elapsed already 60 seconds
-		// to send a telemtry keep-alive
-		if time.Since(lastKeepAlive).Seconds() >= 60 {
-			chanTelemetry <- TelemetryValues["KeepAlive"]
-			ConsoleLogger(LogDebug, "Logging Telemetry keep-alive.", false)
-
-			lastKeepAlive = time.Now() // reset the timer
-		}
-	}
-}
-
 // TelemetryCollector receives information from other
 // go routines and forwards them to InfluxDB
 func TelemetryCollector(chanTelemetry chan uint) {
