@@ -62,14 +62,14 @@ func init() {
 }
 
 // parseDNSQuestion inspects the DNS question from the payload packet,
-// and implements some minimum logging output.
-func parseDNSQuestion(reqData []byte) error {
+// and implements telemetry logging.
+func parseDNSQuestion(reqData []byte) (string, error) {
 	// initialize the message parser
 	var dnsParser dnsmessage.Parser
 
 	// consume the dns message
 	if _, err := dnsParser.Start(reqData); err != nil {
-		return err
+		return "", err
 	}
 
 	// parse the question
@@ -79,17 +79,54 @@ func parseDNSQuestion(reqData []byte) error {
 			break
 		}
 		if err != nil {
-			return err
+			return "", err
 		}
 
+		ConsoleLogger(LogDebug, q, false)
 		ConsoleLogger(LogDebug, fmt.Sprintf("Lookup: %s, %s, %s\n", q.Name, q.Class, q.Type), false)
 
 		// Telemetry: Logging DNS request type
 		telemetryChannel <- TelemetryValues[q.Type.String()]
 		ConsoleLogger(LogDebug, fmt.Sprintf("Logging DNS Telemetry for %s request.", q.Type), false)
+
+		return "", nil
 	}
 
-	return nil
+	return "", nil
+}
+
+// parseDNSResponse inspects the DNS response, to return the lowest TTL,
+// which then will be reflected to the HTTP response header
+func parseDNSResponse(respData []byte) (uint32, error) {
+	// initialize a DNS message
+	var msg dnsmessage.Message
+	// initialize a variable for the TTL
+	var minimumTTL uint32 = 0
+
+	// unpack the DNS packet
+	err := msg.Unpack(respData)
+	if err != nil {
+		return 0, err
+	}
+
+	ConsoleLogger(LogDebug, fmt.Sprintf("DNS Response carries %d answer(s)\n", len(msg.Answers)), false)
+
+	// parse the response
+	for _, dnsRR := range msg.Answers {
+		ConsoleLogger(LogDebug, fmt.Sprint("Response RR: ", dnsRR), false)
+		ConsoleLogger(LogDebug, fmt.Sprintf("-> TTL is %d seconds\n", dnsRR.Header.TTL), false)
+
+		// store minimum TTL if we have no value yet for the TTL
+		// of if the previous value of the TTL is bigger than the current value
+		if minimumTTL == 0 || minimumTTL > dnsRR.Header.TTL {
+			minimumTTL = dnsRR.Header.TTL
+		}
+	}
+
+	ConsoleLogger(LogDebug, fmt.Sprintf("Smallest TTL in response considered: %d", minimumTTL), false)
+
+	// return a
+	return minimumTTL, nil
 }
 
 /*
@@ -134,35 +171,19 @@ func sendDNSRequest(request []byte) ([]byte, error) {
 
 // commonDNSRequestHandler is the shared backend routine, invoked from either
 // the POST or GET frontend handlers.
-// The routine consumes the http.ResponseWrite, http.Request and dnsRequest,
+// The routine consumes the http.ResponseWriter and dnsRequest,
 // and passes the request to the question validator.
 // If the DNS question is deemed valid, the query is passed over to the
 // DNS server.
-func commonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest []byte) {
-	var ccNoCache = false // default for Cache-Control: NoCache is FALSE (means: reply from cache)
-	var ccNoStore = false // default for Cache-Control: NoStore is FALSE (means: store to cache)
-	_ = ccNoCache         // FIXME: backend code for ccNoCache not there yet. Silence compiler warning using this directive
-
+func commonDNSRequestHandler(w http.ResponseWriter, dnsRequest []byte) {
 	// bail out if DNS request is smaller than 28 bytes
 	if len(dnsRequest) < 28 {
 		sendError(w, http.StatusBadRequest, "Malformed request: DNS payload is below treshold")
 		return
 	}
 
-	// check Cache-Control request headers
-	for _, value := range r.Header["Cache-Control"] {
-		if value == "no-cache" {
-			ConsoleLogger(LogDebug, "Client requested Cache-Control: no-cache", false)
-			ccNoCache = true // client instructed to not response from server-side cache
-		}
-		if value == "no-store" {
-			ConsoleLogger(LogDebug, "Client requested Cache-Control: no-store", false)
-			ccNoStore = true // client instructed to not store to server-side cache
-		}
-	}
-
 	// parse the DNS question
-	if err := parseDNSQuestion(dnsRequest); err != nil {
+	if _, err := parseDNSQuestion(dnsRequest); err != nil {
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error in DNS question: %s", err))
 		return
 	}
@@ -173,28 +194,22 @@ func commonDNSRequestHandler(w http.ResponseWriter, r http.Request, dnsRequest [
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", err))
 		return
 	}
-	// FIXME: implement server-side cache, but honor ccNoStore
 
-	// parse DNS Response
-	/*
-		FIXME: not implemented yet in backend code
-	*/
-	//parseDNSResponse(dnsResponse)
+	// parse DNS Response to get the minimum TTL
+	minimumTTL, err := parseDNSResponse(dnsResponse)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, fmt.Sprintf("Error when parsing DNS response: %s", err))
+		return
+	}
+
+	// FIXME: implement server-side cache, but honor ccNoStore
+	cacheHandler(dnsResponse, minimumTTL)
 
 	// return dns-message to client
 	w.Header().Set("Content-Type", "application/dns-message")
 
-	// FIXME this is actually wrong
-	// should implement DNS payload parser, and extract the proper TTL
-	// for any RR type available. In case of SOA records, the MIN-TTL must be used instead.
-	// honor ccNoStore flag: set max-age:0 to indicate we did our best to not cache
-	if ccNoStore == true {
-		w.Header().Set("Cache-Control", "max-age: 0")
-	} else {
-		// FIXME: this should actually be the *lowest* TTL from the DNS response
-		// we need a DNS response parser to handle this
-		w.Header().Set("Cache-Control", "max-age: 15")
-	}
+	// reflect the minimum TTL into the response header
+	w.Header().Set("Cache-Control", fmt.Sprintf("max-age: %d", minimumTTL))
 
 	// conclude with OK status code and return the dns payload
 	w.WriteHeader(http.StatusOK)
@@ -223,7 +238,7 @@ func DNSQueryGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// pass DNS request to request handler
-	commonDNSRequestHandler(w, *r, dnsRequest)
+	commonDNSRequestHandler(w, dnsRequest)
 
 	return
 }
@@ -257,7 +272,7 @@ func DNSQueryPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// pass DNS request to request handler
-	commonDNSRequestHandler(w, *r, dnsRequest)
+	commonDNSRequestHandler(w, dnsRequest)
 
 	return
 }
