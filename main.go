@@ -202,7 +202,7 @@ func main() {
 				http.ListenAndServe(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("http.port")), router),
 				true)
 		}()
-		goDoH.ConsoleLogger(goDoH.LogNotice, "HTTP Server started", false)
+		goDoH.ConsoleLogger(goDoH.LogNotice, fmt.Sprintf("HTTP Server started (listen %s:%s)", viper.GetString("global.listen"), viper.GetString("http.port")), false)
 	}
 
 	// fire up TLS HTTP/2 server
@@ -214,7 +214,7 @@ func main() {
 				viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router),
 			true)
 	}()
-	goDoH.ConsoleLogger(goDoH.LogNotice, "TLS HTTP Server started", false)
+	goDoH.ConsoleLogger(goDoH.LogNotice, fmt.Sprintf("TLS HTTP Server started (listen on %s:%s)", viper.GetString("global.listen"), viper.GetString("tls.port")), false)
 
 	// wait for all routines to complete
 	// NOTE: will not currently happen, since we don't listen to any signals yet
