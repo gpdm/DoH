@@ -85,5 +85,4 @@ loglevel = 5
     enable = false
     addr = "localhost"
     port = "6379"
-    username = ""
     password = ""

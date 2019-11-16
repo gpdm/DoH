@@ -71,7 +71,6 @@ func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 	viper.SetDefault("redis.enable", false)
 	viper.SetDefault("redis.addr", "localhost")
 	viper.SetDefault("redis.port", "6379")
-	viper.SetDefault("redis.username", nil)
 	viper.SetDefault("redis.password", nil)
 	viper.SetDefault("influx.enable", false)
 	viper.SetDefault("influx.url", nil)
@@ -161,7 +160,7 @@ func sanitizeRuntimeConfig() {
 
 	// bail out on missing influxDB config
 	//
-	if viper.GetBool("redis.enable") && (viper.GetString("redis.addr") == "" || viper.GetString("redis.port") == "" || viper.GetString("redis.username") == "" || viper.GetString("redis.password") == "") {
+	if viper.GetBool("redis.enable") && (viper.GetString("redis.addr") == "" || viper.GetString("redis.port") == "" || viper.GetString("redis.password") == "") {
 		goDoH.ConsoleLogger(goDoH.LogEmerg, "Redis is enabled, but one or more required config values is not properly set.", true)
 	}
 
