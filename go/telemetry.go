@@ -215,7 +215,7 @@ func influxDBClient() client.Client {
 		Password: viper.GetString("influx.password"),
 	})
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %w", err), true)
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %s", err), true)
 	}
 	return influxConnection
 }
@@ -264,7 +264,7 @@ func sendMetrics(c client.Client) bool {
 		Precision: "s",
 	})
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %w", err), false)
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %s", err), false)
 		return false
 	}
 
@@ -277,7 +277,7 @@ func sendMetrics(c client.Client) bool {
 		time.Now(),
 	)
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %w", err), false)
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", err), false)
 		return false
 	}
 
@@ -290,7 +290,7 @@ func sendMetrics(c client.Client) bool {
 		time.Now(),
 	)
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %w", err), false)
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", err), false)
 		return false
 	}
 
@@ -298,7 +298,7 @@ func sendMetrics(c client.Client) bool {
 	bp.AddPoint(dnsPoint)
 
 	if err := c.Write(bp); err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error writing to InfluxDB: %w", err), false)
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error writing to InfluxDB: %s", err), false)
 		return false
 	}
 
