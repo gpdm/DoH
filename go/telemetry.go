@@ -209,13 +209,13 @@ var telemetryData = map[uint]map[string]interface{}{
 // a connection handle
 func influxDBClient() client.Client {
 	ConsoleLogger(LogDebug, fmt.Sprintf("Connecting to InfluxDB at %s", viper.GetString("influx.url")), false)
-	influxConnection, connectionError := client.NewHTTPClient(client.HTTPConfig{
+	influxConnection, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:     viper.GetString("influx.url"),
 		Username: viper.GetString("influx.username"),
 		Password: viper.GetString("influx.password"),
 	})
-	if connectionError != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %s", connectionError), true)
+	if err != nil {
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %w", err), true)
 	}
 	return influxConnection
 }
@@ -245,6 +245,8 @@ func getCounters(neededRequestCategory string) map[string]interface{} {
 // resetCounters parses our telemetry statistics
 // and resets all current counts to zero
 func resetCounters() {
+	ConsoleLogger(LogDebug, "Resetting telemtry counters", false)
+
 	// loop our statistics map
 	for _requestType := range telemetryData {
 		// reset counter
@@ -254,16 +256,19 @@ func resetCounters() {
 
 // sendMetrics parses the telemetry information out into
 // datastructures suitable to for InfluxDB, to which it is sent.
-func sendMetrics(c client.Client) {
-	bp, bpError := client.NewBatchPoints(client.BatchPointsConfig{
+func sendMetrics(c client.Client) bool {
+	ConsoleLogger(LogDebug, "Resetting telemtry counters", false)
+
+	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  viper.GetString("influx.database"),
 		Precision: "s",
 	})
-	if bpError != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %s", bpError), true)
+	if err != nil {
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %w", err), false)
+		return false
 	}
 
-	httpPoint, httpPointError := client.NewPoint(
+	httpPoint, err := client.NewPoint(
 		"dohStatistics",
 		map[string]string{ // tags
 			"ServiceStats": "HTTP",
@@ -271,11 +276,12 @@ func sendMetrics(c client.Client) {
 		getCounters("HTTP"), // fields
 		time.Now(),
 	)
-	if httpPointError != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", httpPointError), true)
+	if err != nil {
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %w", err), false)
+		return false
 	}
 
-	dnsPoint, dnsPointError := client.NewPoint(
+	dnsPoint, err := client.NewPoint(
 		"dohStatistics",
 		map[string]string{ // tags
 			"ServiceStats": "DNS",
@@ -283,17 +289,23 @@ func sendMetrics(c client.Client) {
 		getCounters("DNS"), // fields
 		time.Now(),
 	)
-	if dnsPointError != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", dnsPointError), true)
+	if err != nil {
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %w", err), false)
+		return false
 	}
 
 	bp.AddPoint(httpPoint)
 	bp.AddPoint(dnsPoint)
 
-	writeError := c.Write(bp)
-	if writeError != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error writing to InfluxDB: %s", writeError), true)
+	if err := c.Write(bp); err != nil {
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error writing to InfluxDB: %w", err), false)
+		return false
 	}
+
+	// reset counters on successful commit
+	resetCounters()
+
+	return true
 }
 
 // telemetryKeepAlive is a go routine, which triggers an internal keep alive every 60 seconds.
@@ -372,10 +384,6 @@ func TelemetryCollector(chanTelemetry chan uint) {
 		if time.Now().Unix() > telemetryLastUpdate+1 {
 			ConsoleLogger(LogDebug, "InfluxDB: sending telemetry update", false)
 			sendMetrics(c)
-
-			// reset counters
-			ConsoleLogger(LogDebug, "Resetting telemtry counters", false)
-			resetCounters()
 
 			// refresh last update timestamp
 			telemetryLastUpdate = time.Now().Unix()
