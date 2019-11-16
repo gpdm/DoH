@@ -245,7 +245,7 @@ func getCounters(neededRequestCategory string) map[string]interface{} {
 // resetCounters parses our telemetry statistics
 // and resets all current counts to zero
 func resetCounters() {
-	ConsoleLogger(LogDebug, "Resetting telemtry counters", false)
+	ConsoleLogger(LogDebug, "Resetting telemetry counters", false)
 
 	// loop our statistics map
 	for _requestType := range telemetryData {
@@ -257,7 +257,7 @@ func resetCounters() {
 // sendMetrics parses the telemetry information out into
 // datastructures suitable to for InfluxDB, to which it is sent.
 func sendMetrics(c client.Client) bool {
-	ConsoleLogger(LogDebug, "Resetting telemtry counters", false)
+	ConsoleLogger(LogDebug, "InfluxDB: sending telemetry update", false)
 
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  viper.GetString("influx.database"),
@@ -321,7 +321,7 @@ func TelemetryCollector(chanTelemetry chan uint) {
 	// Check if InfluxDB is disabled.
 	//
 	// If this is the case, divert into this specific event loop.
-	// Since other go routines will still throw telemtry to the collector,
+	// Since other go routines will still throw telemetry to the collector,
 	// we need to consume the telemetry channel in order to prevent deadlocks.
 	// The alternative would be to clutter the code with if-else's.
 	// The expense for not doing this, is to do the extra-roundtrip to the
@@ -363,7 +363,6 @@ func TelemetryCollector(chanTelemetry chan uint) {
 			select {
 			case <-tock:
 				// It's time to send a telemetry update.
-				ConsoleLogger(LogDebug, "InfluxDB: sending telemetry update", false)
 				sendMetrics(c)
 
 			default:
