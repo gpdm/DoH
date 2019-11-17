@@ -41,9 +41,7 @@
 package dohservice
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/spf13/viper"
@@ -76,43 +74,106 @@ func redisClient() *redis.Pool {
 
 }
 
-type cachedDNSRequest struct {
-	requestData  string
-	responseData []byte
-	cachedTTL    uint32
-}
-
-func cacheHandler(dnsResponse []byte, minimumTTL uint32) {
+// redisAddToCache stores DNS responses as datasets to Redis.
+// This function never fails, as errors are hidden from the caller.
+// This allows the caller to continue independently from any potential
+// error during the backend operation.
+func redisAddToCache(dnsRequestId string, dnsResponse []byte, smallestTTL uint32) {
+	// return if Redis is disabled
 	if !viper.GetBool("redis.enable") {
 		return
 	}
 
-	// connect to InfluxDB
+	// connect to Redis
+	// FIXME: connection pooling should propably be outside of this function
+	// plus we should handle connection failures gracefully, i.e. to skip the cache
+	// set/get in case of backend failure for better resilience (include redis' ping somewhere?)
+	// FIXME return on redis unavailability
 	pool := redisClient()
 	c := pool.Get()
 	defer c.Close()
 
-	//const objectPrefix string = "user:"
+	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: storing response for %s (expire after %d seconds)", dnsRequestId, smallestTTL), false)
 
-	usr := cachedDNSRequest{
-		requestData:  "test",
-		responseData: dnsResponse,
-		cachedTTL:    minimumTTL,
+	// store object to redis
+	_, err := c.Do("SET", dnsRequestId, dnsResponse)
+	if err != nil {
+		// handle cache-read errors gracefully, and return nil
+		// so caller continues without cache result
+		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache set: %s", err), false)
+		return
 	}
 
-	// serialize User object to JSON
-	json, err := json.Marshal(usr)
+	// bind maximum object lifetime to max TTL value from the DNS response
+	_, err = c.Do("EXPIRE", dnsRequestId, smallestTTL)
 	if err != nil {
-		log.Println(err)
-		//return err
-	}
-
-	// SET object
-	_, err = c.Do("SET", usr.requestData, json)
-	if err != nil {
-		log.Println(err)
-		//return err
+		// handle cache-read errors gracefully, and return nil
+		// so caller continues without cache result
+		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache expiration: %s", err), false)
+		return
 	}
 
 	return
+}
+
+// redisGetFromCache retrieves potentially cached datasets from Redis,
+// and converts them back to wire-format DNS response packets.
+// This function never fails, as errors are hidden from the caller.
+// This allows the caller to continue independently from any potential
+// error during the backend operation.
+func redisGetFromCache(dnsRequestId string) []byte {
+	// return if Redis is disabled
+	if !viper.GetBool("redis.enable") {
+		return nil
+	}
+
+	// connect to Redis
+	// FIXME: connection pooling should propably be outside of this function
+	// plus we should handle connection failures gracefully, i.e. to skip the cache
+	// set/get in case of backend failure for better resilience (include redis' ping somewhere?)
+	// FIXME return on redis unavailability
+	pool := redisClient()
+	c := pool.Get()
+	defer c.Close()
+
+	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: lookup for %s", dnsRequestId), false)
+
+	// read object from Redis
+	cachedDataset, err := c.Do("GET", dnsRequestId)
+	if err != nil {
+		// handle cache-read errors gracefully, and return nil
+		// so caller continues without cache result
+		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache lookup: %s", err), false)
+		return nil
+	}
+
+	// return nil if no cached data was found, so caller
+	// can continue without cache
+	if cachedDataset == nil {
+		ConsoleLogger(LogDebug, "Redis: cache-miss, no data found", false)
+
+		// Telemetry: Logging cache-miss
+		telemetryChannel <- TelemetryValues["CacheMiss"]
+		ConsoleLogger(LogDebug, "Logging Redis Telemetry for cache-miss.", false)
+
+		return nil
+	}
+
+	// convert redis dataset back to native byte-stream aka wire-format packet
+	cachedDNSResponse, err := redis.Bytes(cachedDataset, err)
+	if err != nil {
+		// handle cache-conversion errors gracefully, and return nil
+		// so caller continues without cache result
+		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache conversion: %s", err), false)
+		return nil
+	}
+
+	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: cache-hit, retrieved %d bytes", len(cachedDNSResponse)), false)
+
+	// Telemetry: Logging cache-hit
+	telemetryChannel <- TelemetryValues["CacheHit"]
+	ConsoleLogger(LogDebug, "Logging Redis Telemetry for cache-hit.", false)
+
+	// return cached DNS response back to caller
+	return cachedDNSResponse
 }

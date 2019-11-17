@@ -75,24 +75,20 @@ func parseDNSQuestion(reqData []byte) (string, error) {
 	// parse the question
 	for {
 		q, err := dnsParser.Question()
-		if err == dnsmessage.ErrSectionDone {
-			break
-		}
 		if err != nil {
 			return "", err
 		}
 
-		ConsoleLogger(LogDebug, q, false)
 		ConsoleLogger(LogDebug, fmt.Sprintf("Lookup: %s, %s, %s\n", q.Name, q.Class, q.Type), false)
 
 		// Telemetry: Logging DNS request type
 		telemetryChannel <- TelemetryValues[q.Type.String()]
 		ConsoleLogger(LogDebug, fmt.Sprintf("Logging DNS Telemetry for %s request.", q.Type), false)
 
-		return "", nil
+		// return a Base64 encoded string generated from (DNS RR, Class and Type)
+		// this string will be used to perform cache set/get actions
+		return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s:%s", q.Name, q.Class, q.Type))), nil
 	}
-
-	return "", nil
 }
 
 // parseDNSResponse inspects the DNS response, to return the lowest TTL,
@@ -100,8 +96,11 @@ func parseDNSQuestion(reqData []byte) (string, error) {
 func parseDNSResponse(respData []byte) (uint32, error) {
 	// initialize a DNS message
 	var msg dnsmessage.Message
-	// initialize a variable for the TTL
-	var minimumTTL uint32 = 0
+	// smallestTTL holds the smallest TTL found in any response.
+	// As per RFC8484, Section 5.1, the smallest <of-many> TTLs must
+	// be used, i.e. to apply for cache-control:max-age
+	// Likewise, the same value is used to steer the Radis cache behaviour
+	var smallestTTL uint32 = 0
 
 	// unpack the DNS packet
 	err := msg.Unpack(respData)
@@ -118,15 +117,15 @@ func parseDNSResponse(respData []byte) (uint32, error) {
 
 		// store minimum TTL if we have no value yet for the TTL
 		// of if the previous value of the TTL is bigger than the current value
-		if minimumTTL == 0 || minimumTTL > dnsRR.Header.TTL {
-			minimumTTL = dnsRR.Header.TTL
+		if smallestTTL == 0 || smallestTTL >= dnsRR.Header.TTL {
+			smallestTTL = dnsRR.Header.TTL
 		}
 	}
 
-	ConsoleLogger(LogDebug, fmt.Sprintf("Smallest TTL in response considered: %d", minimumTTL), false)
+	ConsoleLogger(LogDebug, fmt.Sprintf("Smallest TTL in response considered: %d", smallestTTL), false)
 
 	// return a
-	return minimumTTL, nil
+	return smallestTTL, nil
 }
 
 /*
@@ -136,6 +135,8 @@ func parseDNSResponse(respData []byte) (uint32, error) {
  */
 func sendDNSRequest(request []byte) ([]byte, error) {
 	// select a random DNS resolver.
+	// FIXME we should have a global probing mechanism, which marks/unmarks servers as alive/dead
+	// and then select the backends only from the number of servers alive
 	dnsResolver := viper.GetStringSlice("dns.resolvers")[rand.Intn(len(viper.GetStringSlice("dns.resolvers")))]
 
 	// open UDP connection to DNS resolver
@@ -176,6 +177,16 @@ func sendDNSRequest(request []byte) ([]byte, error) {
 // If the DNS question is deemed valid, the query is passed over to the
 // DNS server.
 func commonDNSRequestHandler(w http.ResponseWriter, dnsRequest []byte) {
+	// dnsRequestId is a Base64 generated from (DNS RR, Class, Type) from the DNS query
+	// It servers as a lookup key in Redis to map cached requests/responses
+	var dnsRequestId string
+	// dnsResponse is the wire format byte stream received from either the Redis cache,
+	// or - initially - from the upstream DNS servers
+	var dnsResponse []byte
+	// smallestTTL is used to control both Redis cache expiration,
+	// and the http cache-control:max-age header, as mandated by RFC8484, Section 5.1
+	var smallestTTL uint32
+
 	// bail out if DNS request is smaller than 28 bytes
 	if len(dnsRequest) < 28 {
 		sendError(w, http.StatusBadRequest, "Malformed request: DNS payload is below treshold")
@@ -183,33 +194,41 @@ func commonDNSRequestHandler(w http.ResponseWriter, dnsRequest []byte) {
 	}
 
 	// parse the DNS question
-	if _, err := parseDNSQuestion(dnsRequest); err != nil {
+	dnsRequestId, err := parseDNSQuestion(dnsRequest)
+	if err != nil {
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error in DNS question: %s", err))
 		return
 	}
 
-	// FIXME: implement server-side cache, but honor ccNoCache
-	dnsResponse, err := sendDNSRequest(dnsRequest)
-	if err != nil {
-		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", err))
-		return
-	}
+	// perform cache lookup in redis
+	if dnsResponse = redisGetFromCache(dnsRequestId); dnsResponse == nil {
+		/*
+		 * resolve DNS request if no cached data exists in redis
+		 * (or when redis was disabled)
+		 */
 
-	// parse DNS Response to get the minimum TTL
-	minimumTTL, err := parseDNSResponse(dnsResponse)
-	if err != nil {
-		sendError(w, http.StatusInternalServerError, fmt.Sprintf("Error when parsing DNS response: %s", err))
-		return
-	}
+		dnsResponse, err = sendDNSRequest(dnsRequest)
+		if err != nil {
+			sendError(w, http.StatusBadRequest, fmt.Sprintf("Error during DNS resolution: %s", err))
+			return
+		}
 
-	// FIXME: implement server-side cache, but honor ccNoStore
-	cacheHandler(dnsResponse, minimumTTL)
+		// parse DNS Response to get the minimum TTL
+		smallestTTL, err = parseDNSResponse(dnsResponse)
+		if err != nil {
+			sendError(w, http.StatusInternalServerError, fmt.Sprintf("Error when parsing DNS response: %s", err))
+			return
+		}
+
+		// store response to redis cache (unless redis is disabled)
+		redisAddToCache(dnsRequestId, dnsResponse, smallestTTL)
+	}
 
 	// return dns-message to client
 	w.Header().Set("Content-Type", "application/dns-message")
 
 	// reflect the minimum TTL into the response header
-	w.Header().Set("Cache-Control", fmt.Sprintf("max-age: %d", minimumTTL))
+	w.Header().Set("Cache-Control", fmt.Sprintf("max-age: %d", smallestTTL))
 
 	// conclude with OK status code and return the dns payload
 	w.WriteHeader(http.StatusOK)
