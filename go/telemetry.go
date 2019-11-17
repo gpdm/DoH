@@ -97,6 +97,12 @@ const TelemetryHTTPRequestTypeGet uint = 0b0000001000000000
 // TelemetryHTTPRequestTypePost is an arbitary type to track HTTP POST requests
 const TelemetryHTTPRequestTypePost uint = 0b0000001000000001
 
+// TelemetryRedisCacheHit is an arbitary type to track Redis cache hits
+const TelemetryRedisCacheHit uint = 0b0000001000000010
+
+// TelemetryRedisCacheMiss is an arbitary type to track Redis cache misses
+const TelemetryRedisCacheMiss uint = 0b0000001000000100
+
 // TelemetryKeepAlive is a generic type to track internal keep-alive
 const TelemetryKeepAlive uint = 0b1111111111111111
 
@@ -120,6 +126,8 @@ var TelemetryValues = map[string]uint{
 	"TypeSRV":   TelemetryDNSRequestTypeSRV,
 	"TypeTXT":   TelemetryDNSRequestTypeTXT,
 	"TypeWKS":   TelemetryDNSRequestTypeWKS,
+	"CacheHit":  TelemetryRedisCacheHit,
+	"CacheMiss": TelemetryRedisCacheMiss,
 	"KeepAlive": TelemetryKeepAlive,
 }
 
@@ -198,6 +206,16 @@ var telemetryData = map[uint]map[string]interface{}{
 		"RequestType":     "TypeWKS",
 		"RequestCounter":  0,
 	},
+	TelemetryRedisCacheHit: {
+		"RequestCategory": "Redis",
+		"RequestType":     "CacheHit",
+		"RequestCounter":  0,
+	},
+	TelemetryRedisCacheMiss: {
+		"RequestCategory": "Redis",
+		"RequestType":     "CacheMiss",
+		"RequestCounter":  0,
+	},
 	TelemetryKeepAlive: {
 		"RequestCategory": "KeepAlive",
 		"RequestType":     "KeepAlive",
@@ -268,6 +286,7 @@ func sendMetrics(c client.Client) bool {
 		return false
 	}
 
+	// time series for HTTP requests
 	httpPoint, err := client.NewPoint(
 		"dohStatistics",
 		map[string]string{ // tags
@@ -281,6 +300,7 @@ func sendMetrics(c client.Client) bool {
 		return false
 	}
 
+	// time series for DNS
 	dnsPoint, err := client.NewPoint(
 		"dohStatistics",
 		map[string]string{ // tags
@@ -294,8 +314,24 @@ func sendMetrics(c client.Client) bool {
 		return false
 	}
 
+	// time series for Redis
+	redisPoint, err := client.NewPoint(
+		"dohStatistics",
+		map[string]string{ // tags
+			"ServiceStats": "Redis",
+		},
+		getCounters("Redis"), // fields
+		time.Now(),
+	)
+	if err != nil {
+		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", err), false)
+		return false
+	}
+
+	// push all time series points
 	bp.AddPoint(httpPoint)
 	bp.AddPoint(dnsPoint)
+	bp.AddPoint(redisPoint)
 
 	if err := c.Write(bp); err != nil {
 		ConsoleLogger(LogCrit, fmt.Sprintf("Error writing to InfluxDB: %s", err), false)
