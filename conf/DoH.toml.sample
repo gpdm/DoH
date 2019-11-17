@@ -72,14 +72,9 @@ loglevel = 5
     password = ""
 
 
-# *** NOT IMPLEMENTED YET -- THIS CONFIG IS CURRENTLY NON-FUNCTIONAL ***
-# Optional redis cache to support server-side caching
-#
-# Caching is still under development. When pointing the DoH server at your
-# local resolver, the latter will perform caching anyway.
-# This is just an additional server-side cache to reduce the load against
-# the backend a little bit.
-# *** NOT IMPLEMENTED YET -- THIS CONFIG IS CURRENTLY NON-FUNCTIONAL ***
+# Optional Redis cache support to perform application-level caching of DNS responses
+# This works side-by-side with any ordinary DNS query cache, but on the DoH frontend service,
+# saving extra round-trips and recursion through the DNS backends.
 #
 [redis]
     enable = false

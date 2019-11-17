@@ -7,9 +7,10 @@ The implementation follows [RFC8484](https://tools.ietf.org/html/rfc8484), and p
 * support for both POST and GET queries over HTTP/2 and TLS
 * supports one or more backend DNS servers
 * optional support to send telemetry information to InfluxDB
+* optional support to use Redis as an application-side response cache
 * configuration support through config files and environment vars
-* supports an optional HTTP-only (read: unencrypted) variant, primarily intended for debugging and development purposes
-* intended to be leightweight and compact
+* supports an optional HTTP-only (read: unencrypted) variant, primarily intended for debugging and development purposes, or to run the DoH daemon behind a frontend TLS load balancer or proxy
+* intended to be leightweight and fast
 * support to run from Docker comes for free
 
 What this DoH implementation is not:
@@ -204,6 +205,30 @@ To use from environment, specify like so:
 
 `docker run [..] -e INFLUX.ENABLE=true -e INFLUX.URL=... -e INFLUX.USERNAME=... INFLUX.PASSWORD=... [..]`
 
+#### redis
+
+The DoH daemon has support to use Redis as an application-level cache.
+
+The cache serves the same purposes as any regular DNS query cache: To store response data,
+and return from cache, until the DNS TTL has expired, saving time on extra recursion round-trips,
+and thus potentially also reduce load.
+
+```toml
+# Optional Redis cache support to perform application-level caching of DNS responses
+# This works side-by-side with any ordinary DNS query cache, but on the DoH frontend service,
+# saving extra round-trips and recursion through the DNS backends.
+#
+[redis]
+    enable = false
+    addr = "localhost"
+    port = "6379"
+    password = ""
+```
+
+To use from environment, specify like so:
+
+`docker run [..] -e REDIS.ENABLE=true -e REDIS.ADDR=... -e REDIS.PORT=... REDIS.PASSWORD=... [..]`
+
 ## Client Configuration
 
 To use your own DoH instance, the client must be configured accordingly.
@@ -311,12 +336,11 @@ This implementation is licensed under the terms of the BSD 3-Clause License.
 
 Here's the list of still missing things to be done, in order of priority:
 
-* Implement optional query caching using memcache or Redis
-* implement freshness indicator for "cache-control: mag-age" as per RFC8484
 * Telemetry for DNS response time per queried DNS server
 * Rework DNS backend support: Support both DNS-over-TLS and DNS-over-HTTP resolvers as well
+* Internal connectivity poller for upstream and sidecar services, to gracefully handle outages on DNS resolvers, InfluxDB and Redis
 * Relay internal log data to remote Syslog server
 
 ## Acknowledgements
 
-Thanks to [@hoempf](https://github.com/hoempf) for some helpful hints and the Dockerfile template, to build the minimalistic Docker image.
+Thanks to [@hoempf](https://github.com/hoempf) for some helpful hints, code reviews, testing assistance, and the Dockerfile template.
