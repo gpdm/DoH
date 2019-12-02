@@ -45,6 +45,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 
@@ -147,10 +148,36 @@ func sanitizeRuntimeConfig() {
 		}
 	}
 
-	// bail out if no DNS resolvers are configured
+	// check DNS resolver configuration
+	//
 	if len(viper.GetStringSlice("dns.resolvers")) == 0 {
+		// bail out if no DNS resolvers are configured
 		goDoH.ConsoleLogger(goDoH.LogEmerg, "No DNS resolvers are configured", true)
+
+	} else {
+		// otherwise: parse given resolvers
+		for key := range viper.GetStringSlice("dns.resolvers") {
+			// parse URI
+			u, err := url.Parse(viper.GetStringSlice("dns.resolvers")[key])
+
+			if err != nil {
+				// bail out on URI format error
+				goDoH.ConsoleLogger(goDoH.LogEmerg, fmt.Sprintf("Given resolver looks invalid: '%s'", viper.GetStringSlice("dns.resolvers")[key]), true)
+			} else {
+				// register valid URIs to global resolvers list
+				goDoH.GlobalDNSResolvers = append(goDoH.GlobalDNSResolvers,
+					goDoH.DNSResolver{
+						Hostname:  u.Hostname(),
+						Scheme:    u.Scheme,
+						ReqType:   u.Fragment,
+						Port:      u.Port(),
+						Reachable: 1,
+					})
+			}
+		}
 	}
+	// finally, map assembled global resolvers to active resolvers list
+	goDoH.ActiveDNSResolvers = goDoH.GlobalDNSResolvers
 
 	// bail out on missing influxDB config
 	//

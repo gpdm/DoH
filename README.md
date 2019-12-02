@@ -120,17 +120,24 @@ To use from environment, specify like so:
 ```toml
 # DNS resolver
 #
-# at least one host must be specified.
-# host must be reachable via UDP on port 53.
-# It's not currently possible to chain to other DoH or DoT servers.
+# at least one host must be specified in
+# URI format, as described in https://tools.ietf.org/html/rfc3986
 #
 # multiple hosts can be specified as shown below,
 # both in FQDN format or using IP(v4|6) addresses.
+# 
+# use udp:// for standard DNS resolvers
+#   - port number can be specified using ':<port>' syntax, defaults to ':53'
+# use https:// for DoH servers
+#   - port number can be specified using ':<port>' syntax, defaults to ':443'
+#   - DoH servers can support both POST or GET request methods,
+#       append '#<request-method>' to indicate preferred method (defaults to '#POST')
+#   - use the FQDN only, do not append '/dns-query' URI to hostname (read: it will be ignored)
 #
-#   [ "192.0.2.1", "fully-qualified-host.local", "192.0.2.13" ]
+#   [ "udp://192.0.2.1:53", "udp://fully-qualified-host.local", "https://cloudflare-dns.com#POST", "https://cloudflare-dns.com#GET" ]
 #
 [dns]
-resolvers = [ "localhost" ]
+    resolvers = [ "udp://192.0.2.1:53", "udp://localhost" ]
 ```
 
 To use from environment, specify like so:
