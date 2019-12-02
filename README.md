@@ -5,7 +5,8 @@ This is a "DNS over HTTP" (DoH) server implementation written in Go.
 The implementation follows [RFC8484](https://tools.ietf.org/html/rfc8484), and provides several key features:
 
 * support for both POST and GET queries over HTTP/2 and TLS
-* supports one or more backend DNS servers
+* supports between one and multiple backend DNS servers
+* DNS backends can be traditional DNS/udp or DoH servers
 * optional support to send telemetry information to InfluxDB
 * optional support to use Redis as an application-side response cache
 * configuration support through config files and environment vars
@@ -20,7 +21,7 @@ What this DoH implementation is not:
 
 Known Limitations:
 
-* Only traditional DNS servers responding on UDP:53 are supported for now
+* DNS-over-TLS backends are not (yet) supported
 * Incoming request packets are not validated, thus relayed 1:1 to the DNS backend server(s)
 
 ## Motivation
@@ -344,7 +345,7 @@ This implementation is licensed under the terms of the BSD 3-Clause License.
 Here's the list of still missing things to be done, in order of priority:
 
 * Telemetry for DNS response time per queried DNS server
-* Rework DNS backend support: Support both DNS-over-TLS and DNS-over-HTTP resolvers as well
+* Rework DNS backend support: Support both DNS-over-TLS as well
 * Internal connectivity poller for upstream and sidecar services, to gracefully handle outages on DNS resolvers, InfluxDB and Redis
 * Relay internal log data to remote Syslog server
 
