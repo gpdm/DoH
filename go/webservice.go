@@ -55,9 +55,9 @@ import (
 // If the DNS question is deemed valid, the query is passed over to the
 // DNS server.
 func commonDNSRequestHandler(w http.ResponseWriter, dnsRequest []byte) {
-	// dnsRequestId is a Base64 generated from (DNS RR, Class, Type) from the DNS query
+	// dnsRequestID is a Base64 generated from (DNS RR, Class, Type) from the DNS query
 	// It servers as a lookup key in Redis to map cached requests/responses
-	var dnsRequestId string
+	var dnsRequestID string
 	// dnsResponse is the wire format byte stream received from either the Redis cache,
 	// or - initially - from the upstream DNS servers
 	var dnsResponse []byte
@@ -72,14 +72,14 @@ func commonDNSRequestHandler(w http.ResponseWriter, dnsRequest []byte) {
 	}
 
 	// parse the DNS question
-	dnsRequestId, err := parseDNSQuestion(dnsRequest)
+	dnsRequestID, err := parseDNSQuestion(dnsRequest)
 	if err != nil {
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Error in DNS question: %s", err))
 		return
 	}
 
 	// perform cache lookup in redis
-	if dnsResponse = redisGetFromCache(dnsRequestId); dnsResponse == nil {
+	if dnsResponse = redisGetFromCache(dnsRequestID); dnsResponse == nil {
 		/*
 		 * resolve DNS request if no cached data exists in redis
 		 * (or when redis was disabled)
@@ -99,7 +99,7 @@ func commonDNSRequestHandler(w http.ResponseWriter, dnsRequest []byte) {
 		}
 
 		// store response to redis cache (unless redis is disabled)
-		redisAddToCache(dnsRequestId, dnsResponse, smallestTTL)
+		redisAddToCache(dnsRequestID, dnsResponse, smallestTTL)
 	}
 
 	// return dns-message to client

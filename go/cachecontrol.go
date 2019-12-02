@@ -78,7 +78,7 @@ func redisClient() *redis.Pool {
 // This function never fails, as errors are hidden from the caller.
 // This allows the caller to continue independently from any potential
 // error during the backend operation.
-func redisAddToCache(dnsRequestId string, dnsResponse []byte, smallestTTL uint32) {
+func redisAddToCache(dnsRequestID string, dnsResponse []byte, smallestTTL uint32) {
 	// return if Redis is disabled
 	if !viper.GetBool("redis.enable") {
 		return
@@ -93,10 +93,10 @@ func redisAddToCache(dnsRequestId string, dnsResponse []byte, smallestTTL uint32
 	c := pool.Get()
 	defer c.Close()
 
-	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: storing response for %s (expire after %d seconds)", dnsRequestId, smallestTTL), false)
+	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: storing response for %s (expire after %d seconds)", dnsRequestID, smallestTTL), false)
 
 	// store object to redis
-	_, err := c.Do("SET", dnsRequestId, dnsResponse)
+	_, err := c.Do("SET", dnsRequestID, dnsResponse)
 	if err != nil {
 		// handle cache-read errors gracefully, and return nil
 		// so caller continues without cache result
@@ -105,7 +105,7 @@ func redisAddToCache(dnsRequestId string, dnsResponse []byte, smallestTTL uint32
 	}
 
 	// bind maximum object lifetime to max TTL value from the DNS response
-	_, err = c.Do("EXPIRE", dnsRequestId, smallestTTL)
+	_, err = c.Do("EXPIRE", dnsRequestID, smallestTTL)
 	if err != nil {
 		// handle cache-read errors gracefully, and return nil
 		// so caller continues without cache result
@@ -121,7 +121,7 @@ func redisAddToCache(dnsRequestId string, dnsResponse []byte, smallestTTL uint32
 // This function never fails, as errors are hidden from the caller.
 // This allows the caller to continue independently from any potential
 // error during the backend operation.
-func redisGetFromCache(dnsRequestId string) []byte {
+func redisGetFromCache(dnsRequestID string) []byte {
 	// return if Redis is disabled
 	if !viper.GetBool("redis.enable") {
 		return nil
@@ -136,10 +136,10 @@ func redisGetFromCache(dnsRequestId string) []byte {
 	c := pool.Get()
 	defer c.Close()
 
-	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: lookup for %s", dnsRequestId), false)
+	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: lookup for %s", dnsRequestID), false)
 
 	// read object from Redis
-	cachedDataset, err := c.Do("GET", dnsRequestId)
+	cachedDataset, err := c.Do("GET", dnsRequestID)
 	if err != nil {
 		// handle cache-read errors gracefully, and return nil
 		// so caller continues without cache result
