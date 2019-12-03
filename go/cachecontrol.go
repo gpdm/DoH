@@ -44,6 +44,7 @@ import (
 	"fmt"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -59,7 +60,7 @@ func redisClient() *redis.Pool {
 		// Dial is an application supplied function for creating and
 		// configuring a connection.
 		Dial: func() (redis.Conn, error) {
-			ConsoleLogger(LogDebug, fmt.Sprintf("Connecting to Redis at %s", viper.GetString("redis.addr")), false)
+			logrus.Debugf("Connecting to Redis at %s", viper.GetString("redis.addr"))
 			c, err := redis.Dial("tcp", fmt.Sprintf("%s:%s", viper.GetString("redis.addr"), viper.GetString("redis.port")))
 			if err != nil {
 				panic(err.Error())
@@ -93,14 +94,14 @@ func redisAddToCache(dnsRequestID string, dnsResponse []byte, smallestTTL uint32
 	c := pool.Get()
 	defer c.Close()
 
-	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: storing response for %s (expire after %d seconds)", dnsRequestID, smallestTTL), false)
+	logrus.Debugf("Redis: storing response for %s (expire after %d seconds)", dnsRequestID, smallestTTL)
 
 	// store object to redis
 	_, err := c.Do("SET", dnsRequestID, dnsResponse)
 	if err != nil {
 		// handle cache-read errors gracefully, and return nil
 		// so caller continues without cache result
-		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache set: %s", err), false)
+		logrus.Debugf("Redis: error performing cache set: %s", err)
 		return
 	}
 
@@ -109,7 +110,7 @@ func redisAddToCache(dnsRequestID string, dnsResponse []byte, smallestTTL uint32
 	if err != nil {
 		// handle cache-read errors gracefully, and return nil
 		// so caller continues without cache result
-		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache expiration: %s", err), false)
+		logrus.Debugf("Redis: error performing cache expiration: %s", err)
 		return
 	}
 
@@ -136,25 +137,25 @@ func redisGetFromCache(dnsRequestID string) []byte {
 	c := pool.Get()
 	defer c.Close()
 
-	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: lookup for %s", dnsRequestID), false)
+	logrus.Debugf("Redis: lookup for %s", dnsRequestID)
 
 	// read object from Redis
 	cachedDataset, err := c.Do("GET", dnsRequestID)
 	if err != nil {
 		// handle cache-read errors gracefully, and return nil
 		// so caller continues without cache result
-		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache lookup: %s", err), false)
+		logrus.Debugf("Redis: error performing cache lookup: %s", err)
 		return nil
 	}
 
 	// return nil if no cached data was found, so caller
 	// can continue without cache
 	if cachedDataset == nil {
-		ConsoleLogger(LogDebug, "Redis: cache-miss, no data found", false)
+		logrus.Debugf("Redis: cache-miss, no data found")
 
 		// Telemetry: Logging cache-miss
 		telemetryChannel <- TelemetryValues["CacheMiss"]
-		ConsoleLogger(LogDebug, "Logging Redis Telemetry for cache-miss.", false)
+		logrus.Debugf("Logging Redis Telemetry for cache-miss.")
 
 		return nil
 	}
@@ -164,15 +165,15 @@ func redisGetFromCache(dnsRequestID string) []byte {
 	if err != nil {
 		// handle cache-conversion errors gracefully, and return nil
 		// so caller continues without cache result
-		ConsoleLogger(LogDebug, fmt.Sprintf("Redis: error performing cache conversion: %s", err), false)
+		logrus.Debugf("Redis: error performing cache conversion: %s", err)
 		return nil
 	}
 
-	ConsoleLogger(LogDebug, fmt.Sprintf("Redis: cache-hit, retrieved %d bytes", len(cachedDNSResponse)), false)
+	logrus.Debugf("Redis: cache-hit, retrieved %d bytes", len(cachedDNSResponse))
 
 	// Telemetry: Logging cache-hit
 	telemetryChannel <- TelemetryValues["CacheHit"]
-	ConsoleLogger(LogDebug, "Logging Redis Telemetry for cache-hit.", false)
+	logrus.Debugf("Logging Redis Telemetry for cache-hit.")
 
 	// return cached DNS response back to caller
 	return cachedDNSResponse

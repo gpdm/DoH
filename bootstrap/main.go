@@ -7,6 +7,7 @@ package main
 
 // Add here any deps with large build times.
 import (
+	_ "github.com/sirupsen/logrus"
 	_ "github.com/spf13/viper"
 )
 

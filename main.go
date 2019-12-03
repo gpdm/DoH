@@ -49,9 +49,11 @@ import (
 	"os"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
 	// DoH lib
+	dohservice "github.com/gpdm/DoH/go"
 	goDoH "github.com/gpdm/DoH/go"
 )
 
@@ -61,7 +63,7 @@ import (
 func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 	// set config defaults
 	viper.SetDefault("global.listen", "")
-	viper.SetDefault("global.loglevel", goDoH.LogNotice)
+	viper.SetDefault("global.loglevel", logrus.InfoLevel)
 	viper.SetDefault("http.enable", false)
 	viper.SetDefault("http.port", "8080")
 	viper.SetDefault("tls.enable", true)
@@ -92,11 +94,11 @@ func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 		_, err := os.Stat(configFile)
 
 		if !os.IsNotExist(err) {
-			goDoH.ConsoleLogger(goDoH.LogNotice, fmt.Sprintf("using config file from: %s", configFile), false)
+			logrus.Infof("using config file from: %s", configFile)
 			viper.SetConfigFile(configFile)
 
 		} else if os.IsNotExist(err) {
-			goDoH.ConsoleLogger(goDoH.LogEmerg, fmt.Sprintf("error accessing '%s': %s", configFile, err), true) // fatal=true, will cause immediate exit
+			logrus.Fatalf("error accessing '%s': %s", configFile, err) // fatal=true, will cause immediate exit
 		}
 	}
 
@@ -104,7 +106,7 @@ func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 	if err := viper.ReadInConfig(); err != nil {
 		// next line catches all errors, *except* file-not-found
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			goDoH.ConsoleLogger(goDoH.LogEmerg, err, true) // fatal=true, will cause immediate exit
+			logrus.Fatal(err)
 		}
 	}
 
@@ -114,15 +116,19 @@ func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 	//
 	// '-debug' takes precendence over '-verbose'
 	if logVerbose { // overrides default log level
-		viper.Set("global.loglevel", goDoH.LogInform)
+		viper.Set("global.loglevel", dohservice.LogInform)
 	}
 	if logDebug { // overrides previous log level
-		viper.Set("global.loglevel", goDoH.LogDebug)
+		viper.Set("global.loglevel", dohservice.LogDebug)
 	}
+
+	level := viper.GetUint("global.loglevel")
+	fmt.Println(level)
+	logrus.SetLevel(dohservice.LogLevels[level])
 
 	// print runtime configuration in verbose mode
 	b, _ := json.MarshalIndent(viper.AllSettings(), "", "  ")
-	goDoH.ConsoleLogger(goDoH.LogInform, fmt.Sprintf("Runtime Configuration dump:\n%s\n", string(b)), false)
+	logrus.Infof("Runtime Configuration dump:\n%s\n", string(b))
 }
 
 // sanitizeRuntimeConfig applies some sanity checking against given
@@ -134,17 +140,17 @@ func sanitizeRuntimeConfig() {
 	// bail out if neither TLS nor plain-HTTP are enable
 	//
 	if !viper.GetBool("http.enable") && !viper.GetBool("tls.enable") {
-		goDoH.ConsoleLogger(goDoH.LogEmerg, "Neither TLS nor plain-HTTP modes are enabled.", true)
+		logrus.Fatalf("Neither TLS nor plain-HTTP modes are enabled.")
 	}
 
 	// bail out on missing cert/key files if TLS is enabled
 	//
 	if viper.GetBool("tls.enable") {
 		if _, err := os.Stat(viper.GetString("tls.pkey")); err != nil {
-			goDoH.ConsoleLogger(goDoH.LogEmerg, fmt.Sprintf("Error accessing TLS private key: %s", err), true)
+			logrus.Fatalf("Error accessing TLS private key: %s", err)
 		}
 		if _, err := os.Stat(viper.GetString("tls.cert")); err != nil {
-			goDoH.ConsoleLogger(goDoH.LogEmerg, fmt.Sprintf("Error accessing TLS certificate: %s", err), true)
+			logrus.Fatalf("Error accessing TLS certificate: %s", err)
 		}
 	}
 
@@ -152,7 +158,7 @@ func sanitizeRuntimeConfig() {
 	//
 	if len(viper.GetStringSlice("dns.resolvers")) == 0 {
 		// bail out if no DNS resolvers are configured
-		goDoH.ConsoleLogger(goDoH.LogEmerg, "No DNS resolvers are configured", true)
+		logrus.Fatalf("No DNS resolvers are configured")
 
 	} else {
 		// otherwise: parse given resolvers
@@ -162,7 +168,7 @@ func sanitizeRuntimeConfig() {
 
 			if err != nil {
 				// bail out on URI format error
-				goDoH.ConsoleLogger(goDoH.LogEmerg, fmt.Sprintf("Given resolver looks invalid: '%s'", viper.GetStringSlice("dns.resolvers")[key]), true)
+				logrus.Fatalf("Given resolver looks invalid: '%s'", viper.GetStringSlice("dns.resolvers")[key])
 			} else {
 				// register valid URIs to global resolvers list
 				goDoH.GlobalDNSResolvers = append(goDoH.GlobalDNSResolvers,
@@ -182,13 +188,13 @@ func sanitizeRuntimeConfig() {
 	// bail out on missing influxDB config
 	//
 	if viper.GetBool("influx.enable") && (viper.GetString("influx.url") == "" || viper.GetString("influx.username") == "" || viper.GetString("influx.password") == "" || viper.GetString("influx.database") == "") {
-		goDoH.ConsoleLogger(goDoH.LogEmerg, "InfluxDB is enabled, but one or more required config values is not properly set.", true)
+		logrus.Fatalf("InfluxDB is enabled, but one or more required config values is not properly set.")
 	}
 
 	// bail out on missing influxDB config
 	//
 	if viper.GetBool("redis.enable") && (viper.GetString("redis.addr") == "" || viper.GetString("redis.port") == "" || viper.GetString("redis.password") == "") {
-		goDoH.ConsoleLogger(goDoH.LogEmerg, "Redis is enabled, but one or more required config values is not properly set.", true)
+		logrus.Fatalf("Redis is enabled, but one or more required config values is not properly set.")
 	}
 
 }
@@ -224,23 +230,25 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			goDoH.ConsoleLogger(goDoH.LogEmerg,
-				http.ListenAndServe(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("http.port")), router),
-				true)
+			err := http.ListenAndServe(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("http.port")), router)
+			if err != nil {
+				logrus.Fatal(err)
+			}
 		}()
-		goDoH.ConsoleLogger(goDoH.LogNotice, fmt.Sprintf("HTTP Server started (listen %s:%s)", viper.GetString("global.listen"), viper.GetString("http.port")), false)
+		logrus.Infof("HTTP Server started (listen %s:%s)", viper.GetString("global.listen"), viper.GetString("http.port"))
 	}
 
 	// fire up TLS HTTP/2 server
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		goDoH.ConsoleLogger(goDoH.LogEmerg,
-			http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("tls.port")),
-				viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router),
-			true)
+		err := http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("tls.port")),
+			viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router)
+		if err != nil {
+			logrus.Fatal(err)
+		}
 	}()
-	goDoH.ConsoleLogger(goDoH.LogNotice, fmt.Sprintf("TLS HTTP Server started (listen on %s:%s)", viper.GetString("global.listen"), viper.GetString("tls.port")), false)
+	logrus.Infof("TLS HTTP Server started (listen on %s:%s)", viper.GetString("global.listen"), viper.GetString("tls.port"))
 
 	// wait for all routines to complete
 	// NOTE: will not currently happen, since we don't listen to any signals yet

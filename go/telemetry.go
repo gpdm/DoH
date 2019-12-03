@@ -41,10 +41,10 @@
 package dohservice
 
 import (
-	"fmt"
 	"time"
 
 	client "github.com/influxdata/influxdb1-client/v2"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -226,14 +226,14 @@ var telemetryData = map[uint]map[string]interface{}{
 // influxDBClient connects to an InfluxDB instance and returns
 // a connection handle
 func influxDBClient() client.Client {
-	ConsoleLogger(LogDebug, fmt.Sprintf("Connecting to InfluxDB at %s", viper.GetString("influx.url")), false)
+	logrus.Debugf("Connecting to InfluxDB at %s", viper.GetString("influx.url"))
 	influxConnection, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:     viper.GetString("influx.url"),
 		Username: viper.GetString("influx.username"),
 		Password: viper.GetString("influx.password"),
 	})
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %s", err), true)
+		logrus.Fatalf("Error connecting to InfluxDB: %s", err)
 	}
 	return influxConnection
 }
@@ -263,7 +263,7 @@ func getCounters(neededRequestCategory string) map[string]interface{} {
 // resetCounters parses our telemetry statistics
 // and resets all current counts to zero
 func resetCounters() {
-	ConsoleLogger(LogDebug, "Resetting telemetry counters", false)
+	logrus.Debugf("Resetting telemetry counters")
 
 	// loop our statistics map
 	for _requestType := range telemetryData {
@@ -275,14 +275,14 @@ func resetCounters() {
 // sendMetrics parses the telemetry information out into
 // datastructures suitable to for InfluxDB, to which it is sent.
 func sendMetrics(c client.Client) bool {
-	ConsoleLogger(LogDebug, "InfluxDB: sending telemetry update", false)
+	logrus.Debugf("InfluxDB: sending telemetry update")
 
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  viper.GetString("influx.database"),
 		Precision: "s",
 	})
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error connecting to InfluxDB: %s", err), false)
+		logrus.Fatalf("Error connecting to InfluxDB: %s", err)
 		return false
 	}
 
@@ -296,7 +296,7 @@ func sendMetrics(c client.Client) bool {
 		time.Now(),
 	)
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", err), false)
+		logrus.Fatalf("Error assembling report point: %s", err)
 		return false
 	}
 
@@ -310,7 +310,7 @@ func sendMetrics(c client.Client) bool {
 		time.Now(),
 	)
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", err), false)
+		logrus.Fatalf("Error assembling report point: %s", err)
 		return false
 	}
 
@@ -324,7 +324,7 @@ func sendMetrics(c client.Client) bool {
 		time.Now(),
 	)
 	if err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error assembling report point: %s", err), false)
+		logrus.Fatalf("Error assembling report point: %s", err)
 		return false
 	}
 
@@ -334,7 +334,7 @@ func sendMetrics(c client.Client) bool {
 	bp.AddPoint(redisPoint)
 
 	if err := c.Write(bp); err != nil {
-		ConsoleLogger(LogCrit, fmt.Sprintf("Error writing to InfluxDB: %s", err), false)
+		logrus.Fatalf("Error writing to InfluxDB: %s", err)
 		return false
 	}
 
@@ -377,22 +377,22 @@ func TelemetryCollector(chanTelemetry chan uint) {
 		case <-tick:
 			// We got a keepalive.
 			chanTelemetry <- TelemetryValues["KeepAlive"]
-			ConsoleLogger(LogDebug, "Logging Telemetry keep-alive.", false)
+			logrus.Debugf("Logging Telemetry keep-alive.")
 		case receivedTelemetry := <-chanTelemetry:
 			// Only send to influx if it's enabled.
 			if !influxEnabled {
-				ConsoleLogger(LogDebug, "Received Telemetry was internally discarded.", false)
+				logrus.Debugf("Received Telemetry was internally discarded.")
 				continue
 			}
 
 			// Consume telemetry data.
 			// Telemetry data will consist of a binary value.
-			ConsoleLogger(LogDebug, fmt.Sprintf("Received incoming telemetry: %s", telemetryData[receivedTelemetry]["RequestType"]), false)
+			logrus.Debugf("Received incoming telemetry: %s", telemetryData[receivedTelemetry]["RequestType"])
 
 			// telemetry counters use the telemetry's value as the key,
 			// so we can just throw it in to the map in order to increment the counters
 			telemetryData[receivedTelemetry]["RequestCounter"] = (telemetryData[receivedTelemetry]["RequestCounter"].(int)) + 1
-			ConsoleLogger(LogDebug, fmt.Sprint("New Count for telementry: ", telemetryData), false)
+			logrus.Debugf("New Count for telementry: ", telemetryData)
 
 			// send new aggregate telemetry information to InfluxDB
 			// only every other second

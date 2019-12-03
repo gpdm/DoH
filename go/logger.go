@@ -40,11 +40,7 @@
 
 package dohservice
 
-import (
-	"log"
-
-	"github.com/spf13/viper"
-)
+import "github.com/sirupsen/logrus"
 
 const (
 	// LogEmerg is a Syslog-type priority for Emergency messages
@@ -72,25 +68,14 @@ const (
 	LogDebug
 )
 
-// ConsoleLogger is a wrapper to the standard logging function.
-// In order to not clutter the code all over with if-else's to cope
-// with special logging needs (i.e. print logs in verbose and/or debug mode,
-// but not otherwise), this function takes care to do this properly.
-func ConsoleLogger(logPriority uint, logMessage interface{}, fatal bool) {
-
-	// skip logging output if priority does not match configured log level
-	if logPriority > viper.GetUint("global.loglevel") {
-		return
-	}
-
-	// check if a fatal error must be reported
-	if fatal {
-		// log the message, calling .Fatal, which will implicitly call os.Exit()
-		log.Fatal(logMessage)
-	} else {
-		// log the message
-		log.Print(logMessage)
-	}
-
-	return
+// LogLevels is a map of logrus <-> syslog log levels.
+var LogLevels = map[uint]logrus.Level{
+	LogEmerg:  logrus.PanicLevel,
+	LogAlert:  logrus.FatalLevel,
+	LogCrit:   logrus.FatalLevel,
+	LogErr:    logrus.ErrorLevel,
+	LogWarn:   logrus.WarnLevel,
+	LogNotice: logrus.InfoLevel,
+	LogInform: logrus.InfoLevel,
+	LogDebug:  logrus.DebugLevel,
 }

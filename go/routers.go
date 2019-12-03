@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 )
 
 type route struct {
@@ -102,7 +103,7 @@ func NewRouter(chanTelemetry chan uint) *mux.Router {
 			Name(route.Name).
 			Handler(handler)
 
-		ConsoleLogger(LogInform, fmt.Sprintf("Registered HTTP handler: method=%s, path=%s", route.Method, route.Pattern), false)
+		logrus.Infof("Registered HTTP handler: method=%s, path=%s", route.Method, route.Pattern)
 	}
 
 	return router
@@ -114,24 +115,23 @@ func httpHandler(inner http.Handler, name string, chanTelemetry chan uint) http.
 		start := time.Now()
 
 		// add some extra verbosity before we handle the request
-		ConsoleLogger(LogDebug, fmt.Sprintf("Client Requested URL: %s", r.URL), false)
-		ConsoleLogger(LogDebug, fmt.Sprintf("Client Request Headers: %s", r.Header), false)
+		logrus.Debugf("Client Requested URL: %s", r.URL)
+		logrus.Debugf("Client Request Headers: %s", r.Header)
 
 		// Telemetry: Logging HTTP request type
 		chanTelemetry <- TelemetryValues[r.Method]
-		ConsoleLogger(LogDebug, fmt.Sprintf("Logging HTTP Telemetry for %s request.", r.Method), false)
+		logrus.Debugf("Logging HTTP Telemetry for %s request.", r.Method)
 
 		// serve the HTTP request
 		inner.ServeHTTP(w, r)
 
 		// Logging HTTP request in verbose mode
-		ConsoleLogger(LogInform, fmt.Sprintf(
-			"%s %s %s %s",
+		logrus.Infof("%s %s %s %s",
 			r.Method,
 			r.RequestURI,
 			name,
 			time.Since(start),
-		), false)
+		)
 	})
 }
 
@@ -141,7 +141,6 @@ func sendError(w http.ResponseWriter, httpStatusCode int, errorMessage string) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(httpStatusCode)
 	fmt.Fprintf(w, errorMessage)
-	ConsoleLogger(LogDebug, errorMessage, false)
-
+	logrus.Debugf(errorMessage)
 	return
 }
