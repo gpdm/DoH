@@ -48,6 +48,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
@@ -158,8 +159,6 @@ func sendDNSRequest(request []byte) ([]byte, error) {
 	// randomly select a resolver
 	dnsResolver := ActiveDNSResolvers[rand.Intn(len(ActiveDNSResolvers))]
 
-	fmt.Println(dnsResolver)
-
 	switch dnsResolver.Scheme {
 	case "https":
 		// default to port 443 if no port was given for https
@@ -241,13 +240,13 @@ func sendDNSRequestHTTPS(request []byte, resolver DNSResolver) ([]byte, error) {
 	var resp *http.Response // DoH response
 	var err error           // error
 
-	if resolver.ReqType == "POST" {
+	if strings.EqualFold(resolver.ReqType, "POST") {
 		// send POST request to DoH resolver
 		resp, err = http.Post(fmt.Sprintf("%s://%s:%s/dns-query", resolver.Scheme, resolver.Hostname, resolver.Port), "application/dns-message", bytes.NewBuffer(request))
 	}
-	if resolver.ReqType == "GET" {
+	if strings.EqualFold(resolver.ReqType, "GET") {
 		// send GET request to DoH resolver
-		resp, err = http.Get(fmt.Sprintf("%s://%s:%s//dns-query?dns=%s", resolver.Scheme, resolver.Hostname, resolver.Port, base64.RawURLEncoding.EncodeToString(request)))
+		resp, err = http.Get(fmt.Sprintf("%s://%s:%s/dns-query?dns=%s", resolver.Scheme, resolver.Hostname, resolver.Port, base64.RawURLEncoding.EncodeToString(request)))
 	}
 
 	defer resp.Body.Close()
