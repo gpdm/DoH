@@ -143,7 +143,7 @@ To use from environment, specify like so:
 
 To use from environment, specify like so:
 
-`docker run [..] -e DNS.RESOLVERS=$(192.0.2.1,192.0.2.2) [..]`
+`docker run [..] -e DNS.RESOLVERS=$(udp://192.0.2.1,udp://localhost:53) [..]`
 
 #### tls
 
@@ -345,7 +345,7 @@ This implementation is licensed under the terms of the BSD 3-Clause License.
 Here's the list of still missing things to be done, in order of priority:
 
 * Telemetry for DNS response time per queried DNS server
-* Rework DNS backend support: Support both DNS-over-TLS as well
+* Rework DNS backend support: Support DNS-over-TLS as well
 * Internal connectivity poller for upstream and sidecar services, to gracefully handle outages on DNS resolvers, InfluxDB and Redis
 * Relay internal log data to remote Syslog server
 
