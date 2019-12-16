@@ -176,7 +176,7 @@ func sanitizeRuntimeConfig() {
 						Scheme:    u.Scheme,
 						ReqType:   u.Fragment,
 						Port:      u.Port(),
-						Reachable: 1,
+						Reachable: 1, // FIXME: should be initialized false with upcoming refactoring
 					})
 			}
 		}
