@@ -98,7 +98,7 @@ func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 			viper.SetConfigFile(configFile)
 
 		} else if os.IsNotExist(err) {
-			logrus.Fatalf("error accessing '%s': %s", configFile, err) // fatal=true, will cause immediate exit
+			logrus.Fatalf("error accessing '%s': %s", configFile, err)
 		}
 	}
 
