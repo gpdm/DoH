@@ -70,7 +70,7 @@ func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 	viper.SetDefault("tls.port", "8443")
 	viper.SetDefault("tls.pkey", "./conf/private.key")
 	viper.SetDefault("tls.cert", "./conf/public.crt")
-	viper.SetDefault("dns.resolvers", []string{"localhost"})
+	viper.SetDefault("dns.resolvers", []string{"udp://localhost:53"})
 	viper.SetDefault("redis.enable", false)
 	viper.SetDefault("redis.addr", "localhost")
 	viper.SetDefault("redis.port", "6379")
