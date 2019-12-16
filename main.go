@@ -190,7 +190,7 @@ func sanitizeRuntimeConfig() {
 		logrus.Fatalf("InfluxDB is enabled, but one or more required config values is not properly set.")
 	}
 
-	// bail out on missing influxDB config
+	// bail out on missing redis config
 	//
 	if viper.GetBool("redis.enable") && (viper.GetString("redis.addr") == "" || viper.GetString("redis.port") == "" || viper.GetString("redis.password") == "") {
 		logrus.Fatalf("Redis is enabled, but one or more required config values is not properly set.")
