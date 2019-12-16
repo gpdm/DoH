@@ -42,7 +42,6 @@ package dohservice
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -54,7 +53,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/dns/dnsmessage"
-	"golang.org/x/sync/errgroup"
 )
 
 // DNSResolver dummy
@@ -64,10 +62,6 @@ type DNSResolver struct {
 	Port      string
 	ReqType   string
 	Reachable byte
-}
-
-func (d *DNSResolver) String() string {
-	return fmt.Sprintf("%s:%s", d.Hostname, d.Port)
 }
 
 // GlobalDNSResolvers is our list of globally known resolvers
@@ -134,7 +128,7 @@ func parseDNSResponse(respData []byte) (uint32, error) {
 
 	// parse the response
 	for _, dnsRR := range msg.Answers {
-		logrus.Debugf("Response RR: %+v", dnsRR)
+		logrus.Debugf("Response RR: ", dnsRR)
 		logrus.Debugf("-> TTL is %d seconds\n", dnsRR.Header.TTL)
 
 		// store minimum TTL if we have no value yet for the TTL
@@ -157,102 +151,39 @@ func parseDNSResponse(respData []byte) (uint32, error) {
  * and dispatches the request via protocol-specific backend
  */
 func sendDNSRequest(request []byte) ([]byte, error) {
-	// Bail out if no active resolvers are available.
+
+	// bail out if no active resolvers are available
 	if len(ActiveDNSResolvers) == 0 {
 		return nil, fmt.Errorf("No active DNS resolvers available (all targets are offline)")
 	}
 
-	result, err := getFirstDNSResponse(request, ActiveDNSResolvers)
-	if err != nil {
-		return nil, fmt.Errorf("error resolving DNS request: %w", err)
-	}
-	return result, nil
-}
+	// randomly select a resolver
+	dnsResolver := ActiveDNSResolvers[rand.Intn(len(ActiveDNSResolvers))]
 
-// Return the response from the fastest server.
-func getFirstDNSResponse(request []byte, resolvers []DNSResolver) ([]byte, error) {
-	done := make(chan []byte) // Results come through here.
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	g, ctx := errgroup.WithContext(ctx)
-	for _, resolver := range resolvers {
-		resolver := resolver // https://golang.org/doc/faq#closures_and_goroutines
-		g.Go(func() error {
-			start := time.Now()
-			switch resolver.Scheme {
-			case "https":
-				// default to port 443 if no port was given for https
-				if resolver.Port == "" {
-					resolver.Port = "443"
-				}
-
-				// default to POST method if no method was given for https
-				if resolver.ReqType == "" {
-					resolver.ReqType = "POST"
-				}
-
-				result, err := sendDNSRequestHTTPS(request, resolver)
-				if err != nil {
-					return err
-				}
-				select {
-				case done <- result:
-					logrus.Debugf("got response from %s after %s", resolver.String(), time.Since(start))
-					return nil
-				case <-ctx.Done():
-					logrus.Debugf("request cancelled after %s becuase %s was slower than other responders", time.Since(start), resolver.String())
-					return ctx.Err()
-				}
-			case "udp":
-				// default to port 53 if no port was given for DNS/udp
-				if resolver.Port == "" {
-					resolver.Port = "53"
-				}
-
-				result, err := sendDNSRequestUDP(request, resolver)
-				if err != nil {
-					return err
-				}
-				select {
-				case done <- result:
-					logrus.Debugf("got response from %s after %s", resolver.String(), time.Since(start))
-					return nil
-				case <-ctx.Done():
-					logrus.Debugf("request cancelled after %s becuase %s was slower than other responders", time.Since(start), resolver.String())
-					return ctx.Err()
-				}
-			default:
-				return fmt.Errorf("No DNS resolver available for scheme '%s'", resolver.Scheme)
-			}
-		})
-	}
-
-	// We just wait for the first response, but in case we don't get any, return
-	// an error.
-	var wait = func() <-chan error {
-		err := make(chan error)
-		go func() {
-			err <- g.Wait()
-		}()
-		return err
-	}
-
-	select {
-	case result := <-done:
-		return result, nil
-	case err := <-wait():
-		// We don't care about the other goroutines. The timeout we set should
-		// take care of the terminating them.
-		if err == nil && len(done) > 0 {
-			// This *could* happen if all gorutines terminate at exactly the
-			// same time. Use one of the replies then.
-			return <-done, nil
+	switch dnsResolver.Scheme {
+	case "https":
+		// default to port 443 if no port was given for https
+		if dnsResolver.Port == "" {
+			dnsResolver.Port = "443"
 		}
-		// Report back one of the errors. TODO(ms): improve this so we get all
-		// errors.
-		return nil, fmt.Errorf("error resolving all resolvers: %w", err)
+
+		// default to POST method if no method was given for https
+		if dnsResolver.ReqType == "" {
+			dnsResolver.ReqType = "POST"
+		}
+
+		return sendDNSRequestHTTPS(request, dnsResolver)
+
+	case "udp":
+		// default to port 53 if no port was given for DNS/udp
+		if dnsResolver.Port == "" {
+			dnsResolver.Port = "53"
+		}
+
+		return sendDNSRequestUDP(request, dnsResolver)
+
+	default:
+		return nil, fmt.Errorf("No DNS resolver available for scheme '%s'", dnsResolver.Scheme)
 	}
 }
 
@@ -306,14 +237,11 @@ func sendDNSRequestUDP(request []byte, resolver DNSResolver) ([]byte, error) {
  * send a DNS request to the resolver over HTTPS
  */
 func sendDNSRequestHTTPS(request []byte, resolver DNSResolver) ([]byte, error) {
+
 	var resp *http.Response // DoH response
 	var err error           // error
 
-	// Don't use the default HTTP client. This is probably better implemented in
-	// sync.Pool or some similar concept.
-	//cli := newHTTPClient()
-
-	if resolver.ReqType == "POST" {
+	if strings.EqualFold(resolver.ReqType, "POST") {
 		// send POST request to DoH resolver
 		resp, err = http.Post(fmt.Sprintf("%s://%s:%s/dns-query", resolver.Scheme, resolver.Hostname, resolver.Port), "application/dns-message", bytes.NewBuffer(request))
 	}

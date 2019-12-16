@@ -123,7 +123,6 @@ func setRuntimeConfig(logVerbose bool, logDebug bool, configFile string) {
 	}
 
 	level := viper.GetUint("global.loglevel")
-	fmt.Println(level)
 	logrus.SetLevel(dohservice.LogLevels[level])
 
 	// print runtime configuration in verbose mode
