@@ -139,7 +139,7 @@ func sanitizeRuntimeConfig() {
 	// bail out if neither TLS nor plain-HTTP are enable
 	//
 	if !viper.GetBool("http.enable") && !viper.GetBool("tls.enable") {
-		logrus.Fatalf("Neither TLS nor plain-HTTP modes are enabled.")
+		logrus.Fatalf("Neither TLS nor plain-HTTP modes are enabled. Please check your config and set either 'tls.enable=true' or 'http.enable=true'.")
 	}
 
 	// bail out on missing cert/key files if TLS is enabled
@@ -239,15 +239,17 @@ func main() {
 
 	// fire up TLS HTTP/2 server
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("tls.port")),
-			viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-	}()
-	logrus.Infof("TLS HTTP Server started (listen on %s:%s)", viper.GetString("global.listen"), viper.GetString("tls.port"))
+	if viper.GetBool("tls.enable") {
+		go func() {
+			defer wg.Done()
+			err := http.ListenAndServeTLS(fmt.Sprintf("%s:%s", viper.GetString("global.listen"), viper.GetString("tls.port")),
+				viper.GetString("tls.cert"), viper.GetString("tls.pkey"), router)
+			if err != nil {
+				logrus.Fatal(err)
+			}
+		}()
+		logrus.Infof("TLS HTTP Server started (listen on %s:%s)", viper.GetString("global.listen"), viper.GetString("tls.port"))
+	}
 
 	// wait for all routines to complete
 	// NOTE: will not currently happen, since we don't listen to any signals yet
