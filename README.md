@@ -342,12 +342,7 @@ This implementation is licensed under the terms of the BSD 3-Clause License.
 
 ## TO DO
 
-Here's the list of still missing things to be done, in order of priority:
-
-* Telemetry for DNS response time per queried DNS server
-* Rework DNS backend support: Support DNS-over-TLS as well
-* Internal connectivity poller for upstream and sidecar services, to gracefully handle outages on DNS resolvers, InfluxDB and Redis
-* Relay internal log data to remote Syslog server
+See also [TODO.md](https://github.com/gpdm/DoH/blob/master/TODO.md)
 
 ## Acknowledgements
 

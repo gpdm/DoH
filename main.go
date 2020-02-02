@@ -1,7 +1,7 @@
 /*
  * go DoH daemon
  *
- * This is a "DNS over HTTP" (DoH) redaemon solver written in Go.
+ * This is a "DNS over HTTP" (DoH) resolver written in Go.
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *
