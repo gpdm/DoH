@@ -1,3 +1,7 @@
+################################################################
+This project is not maintained anymore - left for reference only
+################################################################
+
 # DoH Server
 
 This is a "DNS over HTTP" (DoH) server implementation written in Go.
